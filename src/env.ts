@@ -32,6 +32,16 @@ export interface Env {
   GOOGLE_PRIVATE_KEY: string;
 
   /**
+   * A random string WE choose. Meta echoes it back when verifying the webhook;
+   * we check it matches. Proves the webhook subscription is really ours.
+   */
+  WHATSAPP_VERIFY_TOKEN: string;
+  /** Meta Graph API access token, used to SEND replies. Shared across clients. */
+  WHATSAPP_TOKEN: string;
+  /** Graph API version, e.g. "v21.0". Optional; defaults in the adapter. */
+  GRAPH_API_VERSION?: string;
+
+  /**
    * When "true", enables local test-only routes like POST /debug/ask.
    * Leave unset in production so these aren't exposed.
    */

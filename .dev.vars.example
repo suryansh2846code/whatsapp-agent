@@ -15,5 +15,12 @@ LLM_MODEL=llama-3.3-70b-versatile
 GOOGLE_CLIENT_EMAIL=bot@your-project.iam.gserviceaccount.com
 GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMII...your...key...\n-----END PRIVATE KEY-----\n"
 
+# WhatsApp (Meta Cloud API).
+# VERIFY_TOKEN is any random string YOU choose; you type the same value into the
+# Meta webhook setup. TOKEN is the Graph API access token from your Meta app.
+WHATSAPP_VERIFY_TOKEN=choose_any_random_string
+WHATSAPP_TOKEN=your_meta_graph_api_access_token
+GRAPH_API_VERSION=v21.0
+
 # Enables POST /debug/ask and /debug/lead for local testing. Leave OUT in production.
 ENABLE_DEBUG_ROUTES=true

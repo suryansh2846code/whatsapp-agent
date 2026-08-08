@@ -2,15 +2,17 @@
  * WhatsApp Agent — Worker entry point.
  *
  * This is the ONE door into our backend. Cloudflare hands every incoming HTTP
- * request to `fetch()` below. It routes to a health check and test-only debug
- * endpoints (for trying the brain and lead capture without WhatsApp). The real
- * WhatsApp webhook comes in a later step.
+ * request to `fetch()` below. It routes to a health check, the WhatsApp webhook
+ * (verification + inbound messages), and test-only debug endpoints (for trying
+ * the brain and lead capture without WhatsApp).
  */
 import type { Env } from "./env";
 import { findBusinessByPhoneNumberId } from "./config";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
 import { createLeadStore } from "./leads";
+import { createWhatsAppClient, parseIncomingMessages } from "./whatsapp";
+import type { IncomingMessage } from "./whatsapp";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -21,6 +23,28 @@ export default {
       return new Response("whatsapp-agent — alive", {
         headers: { "content-type": "text/plain" },
       });
+    }
+
+    // WhatsApp webhook VERIFICATION (Meta calls this once, with a GET, when you
+    // register the URL). We echo back `hub.challenge` only if the token matches.
+    if (request.method === "GET" && url.pathname === "/webhook") {
+      const mode = url.searchParams.get("hub.mode");
+      const token = url.searchParams.get("hub.verify_token");
+      const challenge = url.searchParams.get("hub.challenge");
+      if (mode === "subscribe" && token === env.WHATSAPP_VERIFY_TOKEN && challenge) {
+        return new Response(challenge, { status: 200 });
+      }
+      return new Response("verification failed", { status: 403 });
+    }
+
+    // WhatsApp INBOUND messages arrive here as POSTs.
+    if (request.method === "POST" && url.pathname === "/webhook") {
+      const body = await request.json().catch(() => null);
+      const messages = parseIncomingMessages(body);
+      // Fast-ack: return 200 immediately so Meta doesn't retry, and do the real
+      // work (brain → reply → lead) in the background via waitUntil.
+      ctx.waitUntil(processMessages(messages, env));
+      return new Response("ok", { status: 200 });
     }
 
     // Test-only: try the brain with a fake message, no WhatsApp needed.
@@ -49,6 +73,45 @@ export default {
     return new Response("not found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
+
+/**
+ * The live loop: for each inbound message, route to its business, answer with
+ * the grounded brain, reply on WhatsApp, and save the lead. Runs in the
+ * background (after we've already 200'd the webhook).
+ *
+ * Each message is wrapped in try/catch so one failure can't sink the others.
+ */
+async function processMessages(messages: IncomingMessage[], env: Env): Promise<void> {
+  if (messages.length === 0) return;
+
+  const llm = createLlmProvider(env);
+  const whatsapp = createWhatsAppClient(env);
+
+  for (const msg of messages) {
+    try {
+      const business = findBusinessByPhoneNumberId(msg.businessPhoneNumberId);
+      if (!business) {
+        // A message to a number we don't manage — ignore it.
+        console.warn(`No business for phoneNumberId ${msg.businessPhoneNumberId}`);
+        continue;
+      }
+
+      const answer = await answerQuestion(llm, business, msg.text);
+      await whatsapp.sendText(msg.businessPhoneNumberId, msg.from, answer);
+
+      const store = createLeadStore(env, business);
+      await store.save({
+        timestamp: new Date().toISOString(),
+        business: business.displayName,
+        name: msg.senderName,
+        phone: msg.from,
+        message: msg.text,
+      });
+    } catch (err) {
+      console.error("failed to process message:", err);
+    }
+  }
+}
 
 async function handleDebugAsk(request: Request, env: Env): Promise<Response> {
   try {
