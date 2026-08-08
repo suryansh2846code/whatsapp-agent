@@ -14,4 +14,5 @@ export function createWhatsAppClient(env: Env): WhatsAppClient {
 }
 
 export { parseIncomingMessages } from "./meta";
+export { verifyMetaSignature } from "./verify";
 export type { WhatsAppClient, IncomingMessage } from "./types";

@@ -38,6 +38,12 @@ export interface Env {
   WHATSAPP_VERIFY_TOKEN: string;
   /** Meta Graph API access token, used to SEND replies. Shared across clients. */
   WHATSAPP_TOKEN: string;
+  /**
+   * The Meta app secret. Used to verify the X-Hub-Signature-256 on inbound
+   * webhooks, proving they really came from Meta. Without a valid signature we
+   * reject the request.
+   */
+  WHATSAPP_APP_SECRET: string;
   /** Graph API version, e.g. "v21.0". Optional; defaults in the adapter. */
   GRAPH_API_VERSION?: string;
 

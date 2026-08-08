@@ -2,16 +2,16 @@
  * WhatsApp Agent — Worker entry point.
  *
  * This is the ONE door into our backend. Cloudflare hands every incoming HTTP
- * request to `fetch()` below. It routes to a health check, the WhatsApp webhook
- * (verification + inbound messages), and test-only debug endpoints (for trying
- * the brain and lead capture without WhatsApp).
+ * request to `fetch()` below. It routes to a health check, a test-only debug
+ * endpoint (for trying the brain without WhatsApp), and — in a later step — the
+ * real WhatsApp webhook.
  */
 import type { Env } from "./env";
 import { findBusinessByPhoneNumberId } from "./config";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
 import { createLeadStore } from "./leads";
-import { createWhatsAppClient, parseIncomingMessages } from "./whatsapp";
+import { createWhatsAppClient, parseIncomingMessages, verifyMetaSignature } from "./whatsapp";
 import type { IncomingMessage } from "./whatsapp";
 
 export default {
@@ -39,7 +39,21 @@ export default {
 
     // WhatsApp INBOUND messages arrive here as POSTs.
     if (request.method === "POST" && url.pathname === "/webhook") {
-      const body = await request.json().catch(() => null);
+      // Read the RAW body first — the signature is computed over these exact
+      // bytes, so we must not re-serialise before verifying.
+      const rawBody = await request.text();
+      const signature = request.headers.get("x-hub-signature-256");
+      const valid = await verifyMetaSignature(env.WHATSAPP_APP_SECRET, rawBody, signature);
+      if (!valid) {
+        return new Response("invalid signature", { status: 401 });
+      }
+
+      let body: unknown = null;
+      try {
+        body = JSON.parse(rawBody);
+      } catch {
+        body = null;
+      }
       const messages = parseIncomingMessages(body);
       // Fast-ack: return 200 immediately so Meta doesn't retry, and do the real
       // work (brain → reply → lead) in the background via waitUntil.
