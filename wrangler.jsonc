@@ -7,7 +7,7 @@
   // compatibility_date pins which version of the Workers runtime behaviour we
   // get. It makes deploys reproducible: the runtime won't silently change
   // under us. Bump it deliberately, never by accident.
-  "compatibility_date": "2026-01-01",
+  "compatibility_date": "2025-07-18",
 
   // Observability = Cloudflare keeps logs we can view. Cheap insurance for a
   // bot that talks to real customers; we'll want to see what it said.
