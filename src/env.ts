@@ -21,4 +21,10 @@ export interface Env {
    * Kept as a setting because hosts rename/retire models over time.
    */
   LLM_MODEL?: string;
+
+  /**
+   * When "true", enables local test-only routes like POST /debug/ask.
+   * Leave unset in production so these aren't exposed.
+   */
+  ENABLE_DEBUG_ROUTES?: string;
 }

@@ -8,3 +8,6 @@ GROQ_API_KEY=your_groq_api_key_here
 # Verify the current model id in Groq's console if the default stops working.
 LLM_PROVIDER=groq
 LLM_MODEL=llama-3.3-70b-versatile
+
+# Enables POST /debug/ask for local testing. Leave this OUT in production.
+ENABLE_DEBUG_ROUTES=true
