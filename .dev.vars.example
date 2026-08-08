@@ -1,0 +1,10 @@
+# Copy this file to `.dev.vars` (git-ignored) and fill in real values for local
+# dev. In production these are set with `wrangler secret put <NAME>` instead.
+
+# API key from https://console.groq.com (Groq is our LLM host for early phases).
+GROQ_API_KEY=your_groq_api_key_here
+
+# Which provider + model to use. Provider defaults to "groq" if unset.
+# Verify the current model id in Groq's console if the default stops working.
+LLM_PROVIDER=groq
+LLM_MODEL=llama-3.3-70b-versatile

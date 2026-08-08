@@ -9,11 +9,7 @@
  * goes through (routing to the right business, the brain, lead capture) will be
  * wired in here step by step.
  */
-
-// `Env` is where Cloudflare injects our secrets and bindings at runtime
-// (API keys, etc). Empty for now; we add fields as we need them, and each one
-// gets documented when it's introduced.
-export interface Env {}
+import type { Env } from "./env";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
