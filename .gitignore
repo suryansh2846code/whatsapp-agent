@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+
+# wrangler local state / build output
+.wrangler/
+dist/
+
+# secrets — NEVER commit these. Local secrets live in .dev.vars (see README).
+.dev.vars
+.env
+.env.*
+
+# Google service-account key JSON — contains a private key. NEVER commit.
+whatsapp-agent-*.json
+*.iam.gserviceaccount.com.json
+
+# os junk
+.DS_Store

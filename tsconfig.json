@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    // Target/module settings that match the Workers runtime (modern JS, ES
+    // modules, bundler-style resolution — Wrangler bundles our code).
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+
+    // Pull in the type definitions for the Cloudflare Workers runtime, so
+    // things like `Request`, `Response`, `fetch`, `ExecutionContext` are typed.
+    "types": ["@cloudflare/workers-types"],
+
+    // strict = TypeScript catches the most mistakes. For a multi-tenant system
+    // where a bad config can break a live client, we want this ON.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+
+    // We never emit JS ourselves — Wrangler bundles. tsc is only a type checker.
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"]
+}
