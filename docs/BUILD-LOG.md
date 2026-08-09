@@ -220,3 +220,29 @@ WhatsApp messages and write junk leads). Close the open item from ADR 0010.
 **v1 is now code-complete and hardened.** To go live: do the Meta setup
 (ONBOARDING Part A step 3 — including the app secret), deploy, and test a real
 message.
+
+---
+
+## Step 7 — First live end-to-end message (2026-08-09)
+
+**Milestone:** a real WhatsApp message to the Meta test number produced a
+grounded reply back to the phone AND a lead row in the Google Sheet. Deployed to
+`https://whatsapp-agent.suryansh2846.workers.dev`.
+
+**Two blockers hit and fixed on the way (both Meta config, not our code):**
+
+1. **App not subscribed to the WABA.** Messages showed in Meta's "Check test
+   webhooks" viewer but never reached our Worker (`wrangler tail` stayed empty).
+   Cause: the WhatsApp Business Account was subscribed only to Meta's internal
+   test app, not ours. Fixed with `POST /<WABA_ID>/subscribed_apps`. This was the
+   big one — see ONBOARDING Troubleshooting.
+2. **Expired access token.** The temporary token expires in ~24h
+   (`OAuthException 190`). Regenerated it and updated the `WHATSAPP_TOKEN` secret.
+
+**Verified live:** `POST /webhook` arrives, signature verifies, Groq answers,
+reply sent, lead saved — no exceptions in the logs.
+
+**Known limitation (expected):** in Development mode with the test number, the
+bot only replies to allow-listed recipients. Going live (real number + published
+app + Business Verification + permanent System User token) is documented in
+ONBOARDING Part C.

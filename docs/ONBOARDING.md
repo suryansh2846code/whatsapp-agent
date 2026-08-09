@@ -29,14 +29,30 @@ You only do this the very first time.
 3. **WhatsApp (Meta)** — set up a Meta Business account + a WhatsApp app.
    - Pick a random **verify token** (any string) → store as
      `WHATSAPP_VERIFY_TOKEN`.
-   - Get the Graph API **access token** → store as `WHATSAPP_TOKEN`. (Temporary
-     token for testing; a permanent System User token for production.)
+   - Get the Graph API **access token** → store as `WHATSAPP_TOKEN`.
+     ⚠️ The token shown on the API Setup page is **temporary (~24h)** and will
+     expire — good only for early testing. For anything real, create a
+     **permanent System User token** (see Part C). When a token expires you'll
+     see `OAuthException code 190 "Session has expired"` and replies stop.
+   - Get the **App Secret** (App Settings → Basic) → store as
+     `WHATSAPP_APP_SECRET` (used to verify inbound webhook signatures).
    - In the app's WhatsApp → Configuration, set the **Callback URL** to
      `https://<your-worker-url>/webhook` and the **Verify token** to the same
-     value as above, then **Verify and Save**. Subscribe to the **messages**
-     field.
+     value as above, then **Verify and Save**. Under **Webhook fields → Manage**,
+     subscribe the **messages** field.
+   - **CRITICAL — subscribe your app to the WABA.** Subscribing the `messages`
+     *field* is not enough: your app must also be subscribed to the specific
+     **WhatsApp Business Account (WABA)**, or Meta shows messages in its "Check
+     test webhooks" viewer but never delivers them to your Worker. Subscribe with:
+     ```
+     curl -X POST \
+       "https://graph.facebook.com/v21.0/<WABA_ID>/subscribed_apps" \
+       -H "Authorization: Bearer <ACCESS_TOKEN>"
+     ```
+     Expect `{"success":true}`. Verify with the same URL using `GET` — your app
+     should appear in the list. (See Troubleshooting.)
    - For building/testing, Meta gives a free **test number** you can message from
-     your own phone.
+     your own phone (added as a verified recipient).
 
 4. **Secrets in production** — locally these live in `.dev.vars`; in production
    set them with `wrangler secret put GROQ_API_KEY` (and the Google ones).
@@ -82,3 +98,44 @@ What the client gives you: their **Gmail** and their **WhatsApp number**.
 
 That's it. The recurring work per client is really just **step 2's `knowledge`**
 plus creating+sharing a sheet.
+
+---
+
+## Part C — Going live (sandbox → real customers)
+
+While in **Development mode** with Meta's **test number**, the bot only talks to
+**allow-listed test recipients** (up to 5). That's a Meta limitation, not a code
+bug — perfect for testing, useless for real customers. To reply to *anyone*:
+
+1. **Use a real business phone number** (the client's own WhatsApp number)
+   connected to the WABA — not the +1 555 test number. Its **phone number ID**
+   goes into the client's config.
+2. **Permanent access token.** Create a **System User** in Meta Business Settings,
+   give it access to the app/WABA, and generate a **non-expiring token**. Store it
+   as `WHATSAPP_TOKEN` (replaces the 24h one). No more expiry surprises.
+3. **Publish the app + Business Verification.** Switch the app from Development to
+   **Live**, and complete Meta **Business Verification** so the app may message
+   the public, not just allow-listed testers.
+
+---
+
+## Troubleshooting
+
+**Messages appear in Meta's "Check test webhooks" viewer but nothing hits your
+Worker (empty logs).**
+Your app isn't subscribed to the **WABA**. Meta only delivers to apps subscribed
+to that WhatsApp Business Account; the "Check test webhooks" panel is Meta's
+internal capture, *not* proof of delivery. Fix: `POST /<WABA_ID>/subscribed_apps`
+(Part A step 3). This was the single biggest gotcha during the first setup.
+
+**Replies stop; logs show `OAuthException code 190 "Session has expired"`.**
+The temporary access token expired (~24h). Regenerate it (or switch to a
+permanent System User token — Part C) and update the `WHATSAPP_TOKEN` secret.
+
+**The bot only replies to your own number.**
+Expected in Development mode with the test number — it only messages allow-listed
+recipients. Add up to 5 test numbers, or go live (Part C).
+
+**How to watch what the Worker is doing live:** `npx wrangler tail --format json`
+streams every request and log. If a real message produces **no** `POST /webhook`
+here, the problem is Meta delivery (WABA subscription / mode), not our code.
