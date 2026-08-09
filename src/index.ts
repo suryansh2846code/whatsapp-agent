@@ -15,6 +15,7 @@ import { createLeadStore } from "./leads";
 import { createBookingStore } from "./bookings";
 import { createWhatsAppClient, parseIncomingMessages, verifyMetaSignature } from "./whatsapp";
 import type { IncomingMessage } from "./whatsapp";
+import { transcribeAudio } from "./voice/transcribe";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -124,6 +125,15 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         continue;
       }
 
+      // Voice note? Download + transcribe it, then treat it as normal text.
+      let text = msg.text;
+      if (!text && msg.audioId) {
+        const media = await whatsapp.getMedia(msg.audioId);
+        text = await transcribeAudio(env, media.data, media.mimeType);
+        console.log(`voice transcript from ${msg.from}: ${text}`);
+      }
+      if (!text) continue; // nothing usable (e.g. empty transcription)
+
       // Decide: answer a question, or capture a visit request — with memory of
       // the recent conversation (so multi-message bookings work).
       const decision = await runConversationTurn(
@@ -131,7 +141,7 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         llm,
         business,
         msg.from,
-        msg.text,
+        text,
       );
 
       // If it was a visit request with a resolved date+time, record it (deduped
@@ -146,7 +156,7 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
           name: decision.booking.name ?? msg.senderName,
           phone: msg.from,
           requestedTime: decision.booking.requestedTime,
-          message: msg.text,
+          message: text,
         });
         console.log(`booking ${bResult}: ${msg.from} -> ${decision.booking.requestedTime}`);
         if (bResult === "unchanged") {
@@ -165,7 +175,7 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         business: business.displayName,
         name: msg.senderName,
         phone: msg.from,
-        message: msg.text,
+        message: text,
       });
       console.log(`lead ${result}: ${msg.from} (${business.displayName})`);
     } catch (err) {

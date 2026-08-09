@@ -8,6 +8,8 @@ GROQ_API_KEY=your_groq_api_key_here
 # Verify the current model id in Groq's console if the default stops working.
 LLM_PROVIDER=groq
 LLM_MODEL=llama-3.3-70b-versatile
+# Speech-to-text model for voice notes (Groq Whisper). Optional.
+STT_MODEL=whisper-large-v3
 
 # Google service account (for writing leads to Sheets). From the downloaded
 # service-account JSON: "client_email" and "private_key". Keep the private key

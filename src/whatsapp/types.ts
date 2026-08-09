@@ -13,11 +13,15 @@ export interface IncomingMessage {
   from: string;
   /** The sender's WhatsApp profile name, if provided. */
   senderName?: string;
-  /** The text the person sent. */
+  /** The text the person sent (empty for a voice note — see `audioId`). */
   text: string;
+  /** For a voice note / audio message: the media id to download + transcribe. */
+  audioId?: string;
 }
 
 export interface WhatsAppClient {
   /** Send a plain text reply from `phoneNumberId` to `to`. */
   sendText(phoneNumberId: string, to: string, text: string): Promise<void>;
+  /** Download a media file (e.g. a voice note) by its media id. */
+  getMedia(mediaId: string): Promise<{ data: ArrayBuffer; mimeType: string }>;
 }

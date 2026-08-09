@@ -29,6 +29,7 @@ interface MetaWebhookBody {
           from?: string;
           type?: string;
           text?: { body?: string };
+          audio?: { id?: string };
         }[];
       };
     }[];
@@ -53,11 +54,21 @@ export function parseIncomingMessages(body: unknown): IncomingMessage[] {
       const senderName = value.contacts?.[0]?.profile?.name;
 
       for (const msg of value.messages ?? []) {
-        if (msg.type !== "text") continue; // v1: text only
-        const text = msg.text?.body;
         const from = msg.from;
-        if (!text || !from) continue;
-        out.push({ businessPhoneNumberId: phoneNumberId, from, senderName, text });
+        if (!from) continue;
+
+        if (msg.type === "text") {
+          const text = msg.text?.body;
+          if (!text) continue;
+          out.push({ businessPhoneNumberId: phoneNumberId, from, senderName, text });
+        } else if (msg.type === "audio") {
+          // A voice note / audio: carry the media id so we can download +
+          // transcribe it later. `text` stays empty until then.
+          const audioId = msg.audio?.id;
+          if (!audioId) continue;
+          out.push({ businessPhoneNumberId: phoneNumberId, from, senderName, text: "", audioId });
+        }
+        // other types (images, statuses, …) are ignored for now.
       }
     }
   }
@@ -91,6 +102,27 @@ export function createMetaWhatsAppClient(opts: MetaWhatsAppOptions): WhatsAppCli
       if (!res.ok) {
         throw new Error(`WhatsApp send error ${res.status}: ${await res.text()}`);
       }
+    },
+
+    async getMedia(mediaId: string): Promise<{ data: ArrayBuffer; mimeType: string }> {
+      // Step 1: resolve the media id to a (short-lived, auth'd) download URL.
+      const metaRes = await fetch(`https://graph.facebook.com/${version}/${mediaId}`, {
+        headers: { authorization: `Bearer ${opts.token}` },
+      });
+      if (!metaRes.ok) {
+        throw new Error(`WhatsApp media lookup error ${metaRes.status}: ${await metaRes.text()}`);
+      }
+      const meta = (await metaRes.json()) as { url?: string; mime_type?: string };
+      if (!meta.url) {
+        throw new Error("WhatsApp media lookup returned no url.");
+      }
+
+      // Step 2: download the bytes (this URL also requires the auth header).
+      const dl = await fetch(meta.url, { headers: { authorization: `Bearer ${opts.token}` } });
+      if (!dl.ok) {
+        throw new Error(`WhatsApp media download error ${dl.status}: ${await dl.text()}`);
+      }
+      return { data: await dl.arrayBuffer(), mimeType: meta.mime_type ?? "audio/ogg" };
     },
   };
 }

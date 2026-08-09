@@ -23,6 +23,12 @@ export interface Env {
   LLM_MODEL?: string;
 
   /**
+   * Speech-to-text model for voice notes (Groq Whisper). Optional; defaults to
+   * "whisper-large-v3". Uses GROQ_API_KEY.
+   */
+  STT_MODEL?: string;
+
+  /**
    * Google service account credentials — shared across ALL clients. The agency
    * owns one "robot" Google account; each client's sheet is shared with this
    * email. Used to write leads to Google Sheets.
