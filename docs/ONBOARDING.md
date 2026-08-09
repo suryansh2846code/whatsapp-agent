@@ -63,14 +63,18 @@ You only do this the very first time.
 
 What the client gives you: their **Gmail** and their **WhatsApp number**.
 
-1. **Create their lead sheet**
-   - Make a new Google Sheet.
-   - Add a header row: `Timestamp | Business | Name | Phone | Message`.
-   - **Share it** (Editor) with the service account robot email from Part A.
+1. **Create their sheet (two tabs)**
+   - Make a new Google Sheet (one **file** per client).
+   - Tab **`Sheet1`** (leads): header row
+     `Timestamp | Business | Name | Phone | Message`.
+   - Add a second **tab named exactly `Bookings`** (visit requests): header row
+     `Timestamp | Business | Name | Phone | Requested time | Message`.
+     ⚠️ Tab names are case-sensitive; it must be `Sheet1` and `Bookings`.
+   - **Share the file** (Editor) with the service account robot email from Part A.
    - Also **share it** (Viewer) with the **client's Gmail** so they can see their
-     leads.
+     leads + bookings.
    - Copy the sheet's ID from its URL
-     (`.../spreadsheets/d/THIS_IS_THE_ID/edit`).
+     (`.../spreadsheets/d/THIS_IS_THE_ID/edit`). One ID covers both tabs.
 
 2. **Write their config** — copy `src/config/businesses/sunshine-preschool.ts`
    to a new file, and edit:

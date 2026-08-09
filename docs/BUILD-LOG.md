@@ -270,3 +270,34 @@ row for that phone with 5 messages stacked in the Message cell.
 
 **Accepted caveat:** a race between two near-simultaneous first messages could
 double-create a row (rare; would need a DB with atomic upserts to fully fix).
+
+---
+
+## Step 9 — Walk phase: visit-request capture (2026-08-09)
+
+**Goal:** the bot's first *action* — capture a visit request. Stateless,
+single-message (ADR 0012).
+
+**What we made**
+- `google/sheets.ts` — refactor: shared service-account auth + read/append/
+  update helpers, reused by leads and bookings (no duplicated JWT crypto).
+- `llm/{types,groq}.ts` — `complete()` gains optional `{ json: true }` (Groq JSON
+  mode) for structured decisions.
+- `brain/booking.ts` — `decideAndRespond()`: one JSON LLM call classifies
+  question vs visit and extracts day/time + name. Question → grounded answer;
+  visit+time → templated confirmation + booking; visit w/o time → ask for a time.
+  Confirmation wording is templated in code (never over-promises).
+- `bookings/{types,google-sheets,index}.ts` — a BookingStore that appends to a
+  **"Bookings"** tab in the business's sheet.
+- `index.ts` — the live loop now decides, replies, saves the lead, and records a
+  booking when present; added `/debug/decide`.
+
+**Verified locally (2026-08-09) via `/debug/decide`:**
+- "what are your fees?" → grounded answer, no booking.
+- "I am Anita. Can I visit this Saturday at 11am?" → confirmation reply +
+  `bookingSaved:true`, row in the Bookings tab.
+- "I want to visit the school" → asks for a day/time, no booking.
+
+**Note:** each business's sheet now needs a second tab named `Bookings`
+(ONBOARDING Part B step 1). **Next (run phase):** multi-turn state, then outbound
+reminders.

@@ -28,3 +28,4 @@ one — the history is the point).
 - [0009 — Write leads via a Google service account](0009-leads-via-service-account.md)
 - [0010 — WhatsApp webhook: fast-ack, text-only, background processing](0010-whatsapp-webhook.md)
 - [0011 — Dedupe leads by phone; keep the first N messages](0011-lead-capture-dedup.md)
+- [0012 — Walk-v1: stateless visit-request capture](0012-walk-visit-booking.md)
