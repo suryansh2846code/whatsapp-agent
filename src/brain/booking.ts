@@ -40,8 +40,10 @@ export async function decideAndRespond(
   const name = asText(parsed.name);
 
   if (intent === "visit") {
-    const when = asText(parsed.visit_time);
-    if (when) {
+    const date = asText(parsed.visit_date);
+    const time = asText(parsed.visit_time);
+    if (date && time) {
+      const when = `${date} at ${time}`;
       const who = name ? ` ${name}` : "";
       return {
         reply:
@@ -50,13 +52,12 @@ export async function decideAndRespond(
         booking: { requestedTime: when, name: name || undefined },
       };
     }
-    // Visit intent but no time yet — ask for one (nothing recorded).
-    return {
-      reply:
-        `I'd be happy to arrange a visit to ${business.displayName}. ` +
-        `What day and time works best for you?`,
-      booking: null,
-    };
+    // Missing a piece — ask specifically for what's missing (nothing recorded).
+    const reply = date
+      ? `Great — what time on ${date} works for you?`
+      : `I'd be happy to arrange a visit to ${business.displayName}. ` +
+        `What day and time works best for you?`;
+    return { reply, booking: null };
   }
 
   // Question — use the grounded answer, or the fallback if the model gave none.
@@ -66,9 +67,11 @@ export async function decideAndRespond(
 
 function buildSystemPrompt(business: BusinessConfig): string {
   const preferredLanguage = business.languages[0] ?? "English";
+  const today = istTodayString();
 
   return `
 You are a warm, helpful WhatsApp assistant for ${business.displayName}.
+Today is ${today} (timezone: India / IST).
 
 Decide whether the person's message is a QUESTION or a VISIT request, then reply.
 A VISIT request = they want to come see / tour / visit (e.g. "can I visit",
@@ -82,17 +85,37 @@ ${business.knowledge}
 Respond with a SINGLE JSON object and nothing else, with exactly these fields:
 {
   "intent": "question" | "visit",
-  "answer": string,     // if intent=question: a short answer using ONLY the FACTS. If the answer isn't in the FACTS, use exactly this text: "${business.fallbackMessage}". Empty string if intent=visit.
-  "visit_time": string, // if intent=visit AND they gave a day/time: that text (e.g. "Saturday 11am"). Empty string otherwise.
-  "name": string        // the person's name if they mention it, else empty string.
+  "answer": string,      // if intent=question: a short answer using ONLY the FACTS. If not in the FACTS, use exactly: "${business.fallbackMessage}". Empty string if intent=visit.
+  "visit_date": string,  // if intent=visit AND a day is given: resolve it to an ABSOLUTE date using today's date above (e.g. "Saturday, 16 August 2026"). Empty string if no day is given.
+  "visit_time": string,  // if intent=visit AND a time is given: that time (e.g. "11:00 AM"). Empty string if no time is given.
+  "name": string         // the person's name if they mention it, else empty string.
 }
 
 Rules:
+- Resolve relative days ("today", "tomorrow", "this Saturday", "next Sunday") to
+  a real calendar date using today's date above.
+- Only fill visit_date / visit_time from what the person has actually said. A
+  plain acknowledgement like "ok" or "thanks" is NOT a new visit request.
 - Answer questions ONLY from the FACTS. Never invent fees, timings, or dates.
 - Keep "answer" short and friendly (1-3 sentences), suitable for WhatsApp.
 - Reply in the language the person used; prefer ${preferredLanguage}.
 - Output ONLY the JSON object — no extra text, no code fences.
 `.trim();
+}
+
+/** Today's date in IST. India has no DST, so a fixed +5:30 offset is exact. */
+function istTodayString(): string {
+  const ist = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+  const days = [
+    "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+  ];
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+  ];
+  const day = days[ist.getUTCDay()] ?? "";
+  const month = months[ist.getUTCMonth()] ?? "";
+  return `${day}, ${ist.getUTCDate()} ${month} ${ist.getUTCFullYear()}`;
 }
 
 /** Parse the model's JSON, salvaging a `{...}` blob if it added stray text. */

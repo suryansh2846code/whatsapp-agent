@@ -133,7 +133,30 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         msg.from,
         msg.text,
       );
-      await whatsapp.sendText(msg.businessPhoneNumberId, msg.from, decision.reply);
+
+      // If it was a visit request with a resolved date+time, record it (deduped
+      // by phone). Save BEFORE replying so we can soften the reply when nothing
+      // changed (e.g. a follow-up "ok thanks" — don't re-confirm or duplicate).
+      let replyText = decision.reply;
+      if (decision.booking) {
+        const bookings = createBookingStore(env, business);
+        const bResult = await bookings.save({
+          timestamp: new Date().toISOString(),
+          business: business.displayName,
+          name: decision.booking.name ?? msg.senderName,
+          phone: msg.from,
+          requestedTime: decision.booking.requestedTime,
+          message: msg.text,
+        });
+        console.log(`booking ${bResult}: ${msg.from} -> ${decision.booking.requestedTime}`);
+        if (bResult === "unchanged") {
+          replyText =
+            `You're all set for ${decision.booking.requestedTime} — ` +
+            `our team will call to confirm.`;
+        }
+      }
+
+      await whatsapp.sendText(msg.businessPhoneNumberId, msg.from, replyText);
 
       // Every message is also a lead (deduped by phone).
       const store = createLeadStore(env, business);
@@ -145,20 +168,6 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         message: msg.text,
       });
       console.log(`lead ${result}: ${msg.from} (${business.displayName})`);
-
-      // If it was a visit request with a time, record it.
-      if (decision.booking) {
-        const bookings = createBookingStore(env, business);
-        await bookings.save({
-          timestamp: new Date().toISOString(),
-          business: business.displayName,
-          name: decision.booking.name ?? msg.senderName,
-          phone: msg.from,
-          requestedTime: decision.booking.requestedTime,
-          message: msg.text,
-        });
-        console.log(`booking requested: ${msg.from} -> ${decision.booking.requestedTime}`);
-      }
     } catch (err) {
       console.error("failed to process message:", err);
     }
@@ -254,21 +263,20 @@ async function handleDebugDecide(request: Request, env: Env): Promise<Response> 
     const phone = body.phone ?? "+910000000000";
     const decision = await runConversationTurn(env.CONVERSATIONS, llm, business, phone, body.message);
 
-    let bookingSaved = false;
+    let bookingResult: string | null = null;
     if (decision.booking) {
       const bookings = createBookingStore(env, business);
-      await bookings.save({
+      bookingResult = await bookings.save({
         timestamp: new Date().toISOString(),
         business: business.displayName,
         name: decision.booking.name,
-        phone: body.phone ?? "+910000000000",
+        phone,
         requestedTime: decision.booking.requestedTime,
         message: body.message,
       });
-      bookingSaved = true;
     }
 
-    return Response.json({ reply: decision.reply, booking: decision.booking, bookingSaved });
+    return Response.json({ reply: decision.reply, booking: decision.booking, bookingResult });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "unknown error" },

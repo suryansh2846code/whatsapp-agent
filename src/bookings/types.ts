@@ -19,7 +19,16 @@ export interface Booking {
   message: string;
 }
 
+/** What happened when we saved a booking (deduped by phone). */
+export type BookingSaveResult =
+  | "created" // first visit request from this phone
+  | "updated" // existing request, the time changed
+  | "unchanged"; // existing request, same time (e.g. a follow-up "ok thanks")
+
 export interface BookingStore {
-  /** Append one visit request. Throws if it can't be saved. */
-  save(booking: Booking): Promise<void>;
+  /**
+   * Save a visit request, deduped by phone (one row per parent). Returns
+   * created / updated / unchanged. Throws if the store can't be reached.
+   */
+  save(booking: Booking): Promise<BookingSaveResult>;
 }
