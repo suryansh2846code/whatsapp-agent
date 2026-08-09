@@ -54,8 +54,13 @@ You only do this the very first time.
    - For building/testing, Meta gives a free **test number** you can message from
      your own phone (added as a verified recipient).
 
-4. **Secrets in production** — locally these live in `.dev.vars`; in production
-   set them with `wrangler secret put GROQ_API_KEY` (and the Google ones).
+4. **Resend** (owner email alerts) — create an account at resend.com, make an API
+   key → store as `RESEND_API_KEY`. In test mode emails only reach your own Resend
+   account address; **verify a domain** in Resend to alert arbitrary client
+   owners in production.
+
+5. **Secrets in production** — locally these live in `.dev.vars`; in production
+   set them with `wrangler secret put <NAME>` (Groq, Google, WhatsApp, Resend).
 
 ---
 
@@ -85,6 +90,7 @@ What the client gives you: their **Gmail** and their **WhatsApp number**.
      ~90% of the work.** Get it reviewed by the client.
    - `fallbackMessage`
    - `leadSheetId` — the sheet ID from step 1
+   - `ownerEmail` — where booking alerts go (the client owner's email)
 
 3. **Register the tenant** — add the new config to the array in
    `src/config/index.ts`.

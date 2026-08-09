@@ -377,3 +377,25 @@ the Worker makes. The WhatsApp media download follows Meta's documented flow;
 full end-to-end needs a live voice note (and a valid token).
 
 **Next:** instant owner alerts (email now, WhatsApp template later).
+
+---
+
+## Step 13 — Owner booking alerts by email (Resend) (2026-08-09)
+
+**Goal:** email the owner the moment a booking comes in, so they call back while
+the lead is warm (ADR 0015).
+
+**What we made**
+- `config/types.ts` — `ownerEmail?` per business.
+- `alerts/email.ts` — `sendBookingAlert` via Resend (non-fatal on failure).
+- `index.ts` — fire the alert on a `created`/`updated` booking, after replying;
+  also wired into `/debug/decide` (returns `alertSent`).
+- `env.ts` / `.dev.vars.example` — `RESEND_API_KEY`, `ALERT_FROM_EMAIL`.
+
+**Verified (2026-08-09):** local `/debug/decide` booking ("visit tomorrow at
+3pm") → `bookingResult:created`, `alertSent:true`, and the email arrived in the
+owner's inbox. (Resend test mode only delivers to the account's own email; a
+domain must be verified to email arbitrary owners.)
+
+**Next:** WhatsApp-template owner alert; permanent WhatsApp token; or the run
+phase (reminders).

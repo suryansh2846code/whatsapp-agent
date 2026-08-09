@@ -31,3 +31,4 @@ one — the history is the point).
 - [0012 — Walk-v1: stateless visit-request capture](0012-walk-visit-booking.md)
 - [0013 — Multi-turn conversation memory via Cloudflare KV](0013-conversation-memory-kv.md)
 - [0014 — Voice notes via Groq Whisper](0014-voice-notes-whisper.md)
+- [0015 — Owner booking alerts via Resend (email)](0015-owner-alerts-resend.md)
