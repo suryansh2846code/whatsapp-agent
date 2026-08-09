@@ -57,4 +57,10 @@ export interface BusinessConfig {
    * their enquiries. (Wired up in a later step.)
    */
   leadSheetId: string;
+
+  /**
+   * The owner's email — gets an instant alert on a new booking so they can call
+   * back while the lead is warm. Optional; no email = no alert. (ADR 0015.)
+   */
+  ownerEmail?: string;
 }

@@ -26,5 +26,11 @@ WHATSAPP_TOKEN=your_meta_graph_api_access_token
 WHATSAPP_APP_SECRET=your_meta_app_secret
 GRAPH_API_VERSION=v21.0
 
+# Resend (owner booking alerts by email). Key from resend.com. In test mode the
+# From defaults to onboarding@resend.dev and can only email your Resend account
+# address; verify a domain to send to anyone.
+RESEND_API_KEY=your_resend_api_key
+ALERT_FROM_EMAIL=onboarding@resend.dev
+
 # Enables POST /debug/ask and /debug/lead for local testing. Leave OUT in production.
 ENABLE_DEBUG_ROUTES=true

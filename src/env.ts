@@ -59,6 +59,11 @@ export interface Env {
    */
   CONVERSATIONS: KVNamespace;
 
+  /** Resend API key for sending owner alert emails on new bookings (ADR 0015). */
+  RESEND_API_KEY: string;
+  /** From-address for alert emails. Optional; defaults to Resend's test sender. */
+  ALERT_FROM_EMAIL?: string;
+
   /**
    * When "true", enables local test-only routes like POST /debug/ask.
    * Leave unset in production so these aren't exposed.

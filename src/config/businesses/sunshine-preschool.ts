@@ -60,4 +60,8 @@ For anything not covered here, our team will call the parent back.
   // The Google Sheet ID for this client's leads. Placeholder until we set up
   // Google Sheets in a later step.
   leadSheetId: "17RZ0zTuq3OZDraVwd8rZnbYXt7LjhkZReHnos4Q1TOo",
+
+  // Owner's email for booking alerts. In Resend TEST mode this must be the email
+  // you signed up to Resend with. Replace with the real owner's email per client.
+  ownerEmail: "origin200626@gmail.com",
 };

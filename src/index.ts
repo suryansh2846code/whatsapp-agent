@@ -16,6 +16,7 @@ import { createBookingStore } from "./bookings";
 import { createWhatsAppClient, parseIncomingMessages, verifyMetaSignature } from "./whatsapp";
 import type { IncomingMessage } from "./whatsapp";
 import { transcribeAudio } from "./voice/transcribe";
+import { sendBookingAlert } from "./alerts/email";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -148,6 +149,7 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
       // by phone). Save BEFORE replying so we can soften the reply when nothing
       // changed (e.g. a follow-up "ok thanks" — don't re-confirm or duplicate).
       let replyText = decision.reply;
+      let newBooking: { name?: string; requestedTime: string } | null = null;
       if (decision.booking) {
         const bookings = createBookingStore(env, business);
         const bResult = await bookings.save({
@@ -163,6 +165,12 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
           replyText =
             `You're all set for ${decision.booking.requestedTime} — ` +
             `our team will call to confirm.`;
+        } else {
+          // created or updated → worth alerting the owner
+          newBooking = {
+            name: decision.booking.name ?? msg.senderName,
+            requestedTime: decision.booking.requestedTime,
+          };
         }
       }
 
@@ -178,6 +186,21 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         message: text,
       });
       console.log(`lead ${result}: ${msg.from} (${business.displayName})`);
+
+      // Alert the owner about a new/updated booking (non-fatal if it fails).
+      if (newBooking) {
+        try {
+          await sendBookingAlert(env, business, {
+            name: newBooking.name,
+            phone: msg.from,
+            requestedTime: newBooking.requestedTime,
+            message: text,
+          });
+          console.log(`owner alert sent for ${business.displayName}`);
+        } catch (e) {
+          console.error("owner alert failed:", e);
+        }
+      }
     } catch (err) {
       console.error("failed to process message:", err);
     }
@@ -274,6 +297,7 @@ async function handleDebugDecide(request: Request, env: Env): Promise<Response> 
     const decision = await runConversationTurn(env.CONVERSATIONS, llm, business, phone, body.message);
 
     let bookingResult: string | null = null;
+    let alertSent = false;
     if (decision.booking) {
       const bookings = createBookingStore(env, business);
       bookingResult = await bookings.save({
@@ -284,9 +308,18 @@ async function handleDebugDecide(request: Request, env: Env): Promise<Response> 
         requestedTime: decision.booking.requestedTime,
         message: body.message,
       });
+      if (bookingResult === "created" || bookingResult === "updated") {
+        await sendBookingAlert(env, business, {
+          name: decision.booking.name,
+          phone,
+          requestedTime: decision.booking.requestedTime,
+          message: body.message,
+        });
+        alertSent = true;
+      }
     }
 
-    return Response.json({ reply: decision.reply, booking: decision.booking, bookingResult });
+    return Response.json({ reply: decision.reply, booking: decision.booking, bookingResult, alertSent });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "unknown error" },
