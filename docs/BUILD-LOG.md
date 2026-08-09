@@ -328,3 +328,28 @@ context (the second message alone has no "visit" word). `bookingSaved:true`.
 **Accepted caveats (ADR 0013):** KV eventual consistency; a rapid-message race;
 we now store conversation content (short TTL mitigates). **Next:** the run phase
 (outbound reminders) — or a permanent WhatsApp token for production.
+
+---
+
+## Step 11 — Booking dedup + absolute dates (2026-08-09)
+
+Two fixes found via live testing (ADR 0012 update).
+
+**Double-booking** — once memory held the visit context, a follow-up ("ok
+thanks") got re-classified as a visit and added a *second* Bookings row. Fixed:
+the BookingStore now **upserts by phone** (read-before-write) and returns
+`created | updated | unchanged`. One row per parent; a changed time updates it; a
+follow-up with the same time is `unchanged` and the reply is softened to "you're
+all set" (no re-confirmation, no duplicate). Booking is saved *before* the reply
+so the reply can reflect the result.
+
+**Ambiguous dates** ("which Sunday?") — the prompt now includes **today's date in
+IST** (fixed +5:30, no DST) and the model resolves relative days to an absolute
+date (e.g. `Saturday, 16 August 2026`), stored resolved and echoed in the
+confirmation. If a day is given without a time, the bot asks specifically for the
+time.
+
+**Verified locally (2026-08-09) via `/debug/decide`, one phone:**
+"I want to visit" → asks day+time; "Saturday at 11am" → **created**, resolved to
+"Saturday, 15 August 2026 at 11:00 AM"; "ok thanks" → **unchanged** (no
+duplicate); "make it Sunday at 10am" → **updated** (same row).

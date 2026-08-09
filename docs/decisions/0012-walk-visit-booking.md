@@ -44,6 +44,22 @@ without building the whole state layer yet.
 - JSON reliability depends on the model; mitigated by JSON mode + a fallback
   parser. Occasional misclassification is possible.
 
+## Update (2026-08-09) — dedup + absolute dates
+
+Two fixes after live testing:
+
+- **Bookings dedup (upsert by phone).** Append-only + conversation memory caused
+  double-booking: a follow-up like "ok thanks" was re-classified as a visit
+  (memory still held the time) and added a second row. Now the BookingStore reads
+  first and returns `created | updated | unchanged` — one row per parent; a
+  changed time updates the row; a follow-up with the same time is `unchanged`
+  (and the reply is softened to "you're all set", not a re-confirmation).
+- **Absolute date resolution.** "Sunday" is ambiguous without an anchor. The
+  prompt now includes **today's date in IST** (fixed +5:30, no DST), and the
+  model resolves relative days ("tomorrow", "this Saturday") to a real date
+  (e.g. `Saturday, 16 August 2026`), stored resolved and echoed in the
+  confirmation so the parent can catch a wrong guess.
+
 ## Alternatives considered
 
 - **Full multi-turn stateful booking** — the real dialogue, but needs a
