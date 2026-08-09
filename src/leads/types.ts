@@ -21,7 +21,16 @@ export interface Lead {
   message: string;
 }
 
+/** What happened when we saved a lead (idempotent by phone). */
+export type LeadSaveResult =
+  | "created" // first time we've seen this phone → a new row
+  | "appended" // existing lead, message added to their row (under the cap)
+  | "skipped"; // existing lead already at the message cap → nothing written
+
 export interface LeadStore {
-  /** Append/save one lead. Throws if it can't be saved. */
-  save(lead: Lead): Promise<void>;
+  /**
+   * Save a lead, idempotently keyed by phone number. Returns what happened
+   * (`created` / `appended` / `skipped`). Throws if the store can't be reached.
+   */
+  save(lead: Lead): Promise<LeadSaveResult>;
 }

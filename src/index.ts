@@ -114,13 +114,14 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
       await whatsapp.sendText(msg.businessPhoneNumberId, msg.from, answer);
 
       const store = createLeadStore(env, business);
-      await store.save({
+      const result = await store.save({
         timestamp: new Date().toISOString(),
         business: business.displayName,
         name: msg.senderName,
         phone: msg.from,
         message: msg.text,
       });
+      console.log(`lead ${result}: ${msg.from} (${business.displayName})`);
     } catch (err) {
       console.error("failed to process message:", err);
     }
@@ -177,14 +178,14 @@ async function handleDebugLead(request: Request, env: Env): Promise<Response> {
     }
 
     const store = createLeadStore(env, business);
-    await store.save({
+    const result = await store.save({
       timestamp: new Date().toISOString(),
       business: business.displayName,
       name: body.name,
       phone: body.phone,
       message: body.message,
     });
-    return Response.json({ saved: true, sheetId: business.leadSheetId });
+    return Response.json({ result, sheetId: business.leadSheetId });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "unknown error" },
