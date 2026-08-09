@@ -353,3 +353,27 @@ time.
 "I want to visit" → asks day+time; "Saturday at 11am" → **created**, resolved to
 "Saturday, 15 August 2026 at 11:00 AM"; "ok thanks" → **unchanged** (no
 duplicate); "make it Sunday at 10am" → **updated** (same row).
+
+---
+
+## Step 12 — Voice notes (Groq Whisper) (2026-08-09)
+
+**Goal:** accept WhatsApp voice notes (common in India), for every business
+(ADR 0014).
+
+**What we made**
+- `whatsapp/types.ts` + `meta.ts` — parse `type:"audio"` messages
+  (`IncomingMessage.audioId`), and a `getMedia(mediaId)` on the WhatsApp client
+  (two-step Meta media download).
+- `voice/transcribe.ts` — `transcribeAudio` posts the audio to Groq Whisper
+  (`whisper-large-v3`, `STT_MODEL`), returns the text.
+- `index.ts` — if a message is audio, download + transcribe first, then run the
+  normal question/booking flow on the transcript.
+- `env.ts` / `.dev.vars.example` — `STT_MODEL`.
+
+**Verified (2026-08-09):** Groq Whisper transcription confirmed with a generated
+clip ("what are the fees of the preschool?" → exact match), using the same call
+the Worker makes. The WhatsApp media download follows Meta's documented flow;
+full end-to-end needs a live voice note (and a valid token).
+
+**Next:** instant owner alerts (email now, WhatsApp template later).

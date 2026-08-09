@@ -30,3 +30,4 @@ one — the history is the point).
 - [0011 — Dedupe leads by phone; keep the first N messages](0011-lead-capture-dedup.md)
 - [0012 — Walk-v1: stateless visit-request capture](0012-walk-visit-booking.md)
 - [0013 — Multi-turn conversation memory via Cloudflare KV](0013-conversation-memory-kv.md)
+- [0014 — Voice notes via Groq Whisper](0014-voice-notes-whisper.md)
