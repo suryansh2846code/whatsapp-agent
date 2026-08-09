@@ -301,3 +301,30 @@ single-message (ADR 0012).
 **Note:** each business's sheet now needs a second tab named `Bookings`
 (ONBOARDING Part B step 1). **Next (run phase):** multi-turn state, then outbound
 reminders.
+
+---
+
+## Step 10 — Multi-turn conversation memory (2026-08-09)
+
+**Goal:** give the bot memory of the recent conversation per parent, so a booking
+split across messages works and answers have context (ADR 0013).
+
+**What we made**
+- Created a **Cloudflare KV namespace** `CONVERSATIONS`; bound it in
+  `wrangler.jsonc`; added `CONVERSATIONS: KVNamespace` to `env.ts`.
+- `memory/conversation.ts` — `runConversationTurn`: load per-parent history from
+  KV (key `phoneNumberId:phone`), decide with it, save the turn back. Cap 8
+  messages, TTL 1 day (auto-expire = privacy default).
+- `brain/booking.ts` — `decideAndRespond` now takes optional `history` and
+  includes it in the LLM call.
+- `index.ts` — the live loop and `/debug/decide` route through
+  `runConversationTurn`.
+
+**Verified locally (2026-08-09, KV simulated by `wrangler dev`):** two
+`/debug/decide` calls, same phone — "I want to visit the school" → asks for a
+time (no booking); then "Saturday at 11am" → **booked**, using the remembered
+context (the second message alone has no "visit" word). `bookingSaved:true`.
+
+**Accepted caveats (ADR 0013):** KV eventual consistency; a rapid-message race;
+we now store conversation content (short TTL mitigates). **Next:** the run phase
+(outbound reminders) — or a permanent WhatsApp token for production.
