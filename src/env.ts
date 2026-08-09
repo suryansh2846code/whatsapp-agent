@@ -48,6 +48,12 @@ export interface Env {
   GRAPH_API_VERSION?: string;
 
   /**
+   * KV store for per-parent conversation memory (recent messages, with a TTL).
+   * This is the "state" a stateless Worker otherwise lacks (see ADR 0013).
+   */
+  CONVERSATIONS: KVNamespace;
+
+  /**
    * When "true", enables local test-only routes like POST /debug/ask.
    * Leave unset in production so these aren't exposed.
    */

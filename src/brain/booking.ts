@@ -1,5 +1,5 @@
 import type { BusinessConfig } from "../config/types";
-import type { LlmProvider } from "../llm/types";
+import type { LlmProvider, LlmMessage } from "../llm/types";
 
 /**
  * The BRAIN, walk-v1: decide between answering a question and capturing a visit
@@ -22,10 +22,14 @@ export async function decideAndRespond(
   llm: LlmProvider,
   business: BusinessConfig,
   userMessage: string,
+  history: LlmMessage[] = [],
 ): Promise<Decision> {
   const raw = await llm.complete(
     [
       { role: "system", content: buildSystemPrompt(business) },
+      // Recent conversation so the model has context — e.g. it can tell that
+      // "Saturday" answers its own earlier "what day and time?" question.
+      ...history,
       { role: "user", content: userMessage },
     ],
     { json: true },

@@ -10,7 +10,7 @@ import type { Env } from "./env";
 import { findBusinessByPhoneNumberId } from "./config";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
-import { decideAndRespond } from "./brain/booking";
+import { runConversationTurn } from "./memory/conversation";
 import { createLeadStore } from "./leads";
 import { createBookingStore } from "./bookings";
 import { createWhatsAppClient, parseIncomingMessages, verifyMetaSignature } from "./whatsapp";
@@ -124,8 +124,15 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         continue;
       }
 
-      // Decide: answer a question, or capture a visit request.
-      const decision = await decideAndRespond(llm, business, msg.text);
+      // Decide: answer a question, or capture a visit request — with memory of
+      // the recent conversation (so multi-message bookings work).
+      const decision = await runConversationTurn(
+        env.CONVERSATIONS,
+        llm,
+        business,
+        msg.from,
+        msg.text,
+      );
       await whatsapp.sendText(msg.businessPhoneNumberId, msg.from, decision.reply);
 
       // Every message is also a lead (deduped by phone).
@@ -244,7 +251,8 @@ async function handleDebugDecide(request: Request, env: Env): Promise<Response> 
     }
 
     const llm = createLlmProvider(env);
-    const decision = await decideAndRespond(llm, business, body.message);
+    const phone = body.phone ?? "+910000000000";
+    const decision = await runConversationTurn(env.CONVERSATIONS, llm, business, phone, body.message);
 
     let bookingSaved = false;
     if (decision.booking) {

@@ -13,5 +13,10 @@
   // bot that talks to real customers; we'll want to see what it said.
   "observability": {
     "enabled": true
-  }
+  },
+
+  // KV store for per-parent conversation memory (short history + TTL).
+  "kv_namespaces": [
+    { "binding": "CONVERSATIONS", "id": "9dc4b75450bb4df48d1e970c6eab658d" }
+  ]
 }
