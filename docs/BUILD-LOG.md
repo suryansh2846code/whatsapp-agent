@@ -246,3 +246,27 @@ reply sent, lead saved — no exceptions in the logs.
 bot only replies to allow-listed recipients. Going live (real number + published
 app + Business Verification + permanent System User token) is documented in
 ONBOARDING Part C.
+
+---
+
+## Step 8 — Lead dedup (one lead per phone, first 5 messages) (2026-08-09)
+
+**Goal:** stop one chatty parent from creating many rows; keep one lead per
+person with their first 5 messages so the owner can read the lead's intent.
+See ADR 0011.
+
+**What changed**
+- `leads/google-sheets.ts` — `save()` now reads Phone+Message first
+  (read-before-write), then: new phone → create row; existing under the cap →
+  append the message into that row's Message cell (newline-separated), keeping
+  the original timestamp; at the cap (5) → skip. Phones compared with non-digits
+  stripped. Writes switched to `valueInputOption=RAW` (formula-injection safety).
+- `leads/types.ts` — `save()` returns `created | appended | skipped`.
+- `index.ts` — the live loop logs the result; `/debug/lead` returns it.
+
+**Verified locally (2026-08-09):** 6 `/debug/lead` calls with the same phone →
+`created, appended, appended, appended, appended, skipped`; the sheet held one
+row for that phone with 5 messages stacked in the Message cell.
+
+**Accepted caveat:** a race between two near-simultaneous first messages could
+double-create a row (rare; would need a DB with atomic upserts to fully fix).

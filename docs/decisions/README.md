@@ -27,3 +27,4 @@ one — the history is the point).
 - [0008 — Concierge onboarding for v1 (agency-operated)](0008-concierge-onboarding-v1.md)
 - [0009 — Write leads via a Google service account](0009-leads-via-service-account.md)
 - [0010 — WhatsApp webhook: fast-ack, text-only, background processing](0010-whatsapp-webhook.md)
+- [0011 — Dedupe leads by phone; keep the first N messages](0011-lead-capture-dedup.md)
