@@ -15,7 +15,12 @@ export interface LlmMessage {
   content: string;
 }
 
+export interface LlmCompleteOptions {
+  /** Ask the provider to return strict JSON (used for structured decisions). */
+  json?: boolean;
+}
+
 export interface LlmProvider {
   /** Send messages, get back the assistant's text reply. */
-  complete(messages: LlmMessage[]): Promise<string>;
+  complete(messages: LlmMessage[], opts?: LlmCompleteOptions): Promise<string>;
 }

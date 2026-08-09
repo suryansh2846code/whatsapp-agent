@@ -1,4 +1,4 @@
-import type { LlmProvider, LlmMessage } from "./types";
+import type { LlmProvider, LlmMessage, LlmCompleteOptions } from "./types";
 
 /**
  * Groq adapter.
@@ -21,20 +21,27 @@ export function createGroqProvider(opts: GroqOptions): LlmProvider {
   }
 
   return {
-    async complete(messages: LlmMessage[]): Promise<string> {
+    async complete(messages: LlmMessage[], completeOpts?: LlmCompleteOptions): Promise<string> {
+      const body: Record<string, unknown> = {
+        model: opts.model,
+        messages,
+        // Low temperature = faithful, not creative. For a grounded FAQ we want
+        // it to stick to the facts, not embellish.
+        temperature: 0.2,
+      };
+      // JSON mode: forces the model to return valid JSON (for structured
+      // decisions like "question vs visit").
+      if (completeOpts?.json) {
+        body.response_format = { type: "json_object" };
+      }
+
       const res = await fetch(GROQ_URL, {
         method: "POST",
         headers: {
           "content-type": "application/json",
           authorization: `Bearer ${opts.apiKey}`,
         },
-        body: JSON.stringify({
-          model: opts.model,
-          messages,
-          // Low temperature = faithful, not creative. For a grounded FAQ we want
-          // it to stick to the facts, not embellish.
-          temperature: 0.2,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {

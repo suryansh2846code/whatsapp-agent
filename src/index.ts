@@ -10,7 +10,9 @@ import type { Env } from "./env";
 import { findBusinessByPhoneNumberId } from "./config";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
+import { decideAndRespond } from "./brain/booking";
 import { createLeadStore } from "./leads";
+import { createBookingStore } from "./bookings";
 import { createWhatsAppClient, parseIncomingMessages, verifyMetaSignature } from "./whatsapp";
 import type { IncomingMessage } from "./whatsapp";
 
@@ -84,6 +86,18 @@ export default {
       return handleDebugLead(request, env);
     }
 
+    // Test-only: run the question-vs-visit decision (and record a booking if
+    // one is extracted), no WhatsApp needed.
+    //   curl -X POST localhost:8787/debug/decide \
+    //     -H 'content-type: application/json' \
+    //     -d '{"phoneNumberId":"1306957939157417","phone":"+910000000042","message":"can I visit this Saturday at 11am?"}'
+    if (request.method === "POST" && url.pathname === "/debug/decide") {
+      if (env.ENABLE_DEBUG_ROUTES !== "true") {
+        return new Response("debug routes disabled", { status: 403 });
+      }
+      return handleDebugDecide(request, env);
+    }
+
     return new Response("not found", { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
@@ -110,9 +124,11 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         continue;
       }
 
-      const answer = await answerQuestion(llm, business, msg.text);
-      await whatsapp.sendText(msg.businessPhoneNumberId, msg.from, answer);
+      // Decide: answer a question, or capture a visit request.
+      const decision = await decideAndRespond(llm, business, msg.text);
+      await whatsapp.sendText(msg.businessPhoneNumberId, msg.from, decision.reply);
 
+      // Every message is also a lead (deduped by phone).
       const store = createLeadStore(env, business);
       const result = await store.save({
         timestamp: new Date().toISOString(),
@@ -122,6 +138,20 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         message: msg.text,
       });
       console.log(`lead ${result}: ${msg.from} (${business.displayName})`);
+
+      // If it was a visit request with a time, record it.
+      if (decision.booking) {
+        const bookings = createBookingStore(env, business);
+        await bookings.save({
+          timestamp: new Date().toISOString(),
+          business: business.displayName,
+          name: decision.booking.name ?? msg.senderName,
+          phone: msg.from,
+          requestedTime: decision.booking.requestedTime,
+          message: msg.text,
+        });
+        console.log(`booking requested: ${msg.from} -> ${decision.booking.requestedTime}`);
+      }
     } catch (err) {
       console.error("failed to process message:", err);
     }
@@ -186,6 +216,51 @@ async function handleDebugLead(request: Request, env: Env): Promise<Response> {
       message: body.message,
     });
     return Response.json({ result, sheetId: business.leadSheetId });
+  } catch (err) {
+    return Response.json(
+      { error: err instanceof Error ? err.message : "unknown error" },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleDebugDecide(request: Request, env: Env): Promise<Response> {
+  try {
+    const body = (await request.json()) as {
+      phoneNumberId?: string;
+      phone?: string;
+      message?: string;
+    };
+
+    const business = findBusinessByPhoneNumberId(body.phoneNumberId ?? "");
+    if (!business) {
+      return Response.json(
+        { error: `No business found for phoneNumberId "${body.phoneNumberId ?? ""}"` },
+        { status: 404 },
+      );
+    }
+    if (!body.message) {
+      return Response.json({ error: "message is required" }, { status: 400 });
+    }
+
+    const llm = createLlmProvider(env);
+    const decision = await decideAndRespond(llm, business, body.message);
+
+    let bookingSaved = false;
+    if (decision.booking) {
+      const bookings = createBookingStore(env, business);
+      await bookings.save({
+        timestamp: new Date().toISOString(),
+        business: business.displayName,
+        name: decision.booking.name,
+        phone: body.phone ?? "+910000000000",
+        requestedTime: decision.booking.requestedTime,
+        message: body.message,
+      });
+      bookingSaved = true;
+    }
+
+    return Response.json({ reply: decision.reply, booking: decision.booking, bookingSaved });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "unknown error" },
