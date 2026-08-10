@@ -480,3 +480,27 @@ browser after Google login.
 
 **CRM v1 complete** (data → auth → dashboard). Next ideas: analytics tiles,
 edit the bot's knowledge from the dashboard, WhatsApp owner alerts, run phase.
+
+---
+
+## Step 17 — Analytics tiles + owner-editable knowledge (2026-08-10)
+
+**Goal:** two dashboard features (ADR 0019).
+
+**What we made**
+- D1 `business_settings` (knowledge, fallback per business). `crm/settings.ts`:
+  `getEffectiveSettings` / `withEffectiveSettings` (D1 override else config) +
+  `upsertSettings`.
+- Bot reads **effective** settings at message time (`processMessages` and
+  `/debug/decide` build an effective business before the brain).
+- API `GET`/`PATCH /api/settings`; dashboard **Settings tab** (edit knowledge +
+  fallback) and a row of **stat tiles** (Leads, New, Converted, Conv %, Bookings,
+  This week) computed client-side.
+
+**Verified locally (2026-08-10):** `GET /api/settings` → config default; `PATCH`
+to a test knowledge ("monthly fee is 9999"); then `/debug/decide "what is the
+monthly fee?"` → **"The monthly fee is exactly 9999 rupees per month."** — the
+bot used the owner-edited D1 knowledge. Tiles render from the leads/bookings API.
+
+**Note:** the live bot still uses config knowledge until an owner edits it in the
+dashboard (edits are per-business in D1, not the repo).
