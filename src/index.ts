@@ -25,8 +25,9 @@ import {
   destroySession,
   sessionCookie,
   clearSessionCookie,
-  saveOAuthState,
-  consumeOAuthState,
+  stateCookie,
+  clearStateCookie,
+  getStateCookie,
 } from "./auth/session";
 
 export default {
@@ -43,15 +44,21 @@ export default {
     // --- Dashboard auth (Google sign-in) ---
     if (url.pathname === "/auth/login") {
       const state = crypto.randomUUID();
-      await saveOAuthState(env, state);
-      const redirectUri = `${url.origin}/auth/callback`;
-      return Response.redirect(buildAuthUrl(env.GOOGLE_OAUTH_CLIENT_ID, redirectUri, state), 302);
+      const authUrl = buildAuthUrl(env.GOOGLE_OAUTH_CLIENT_ID, `${url.origin}/auth/callback`, state);
+      const secure = url.protocol === "https:";
+      // Stash the state in a cookie (CSRF) and send them to Google.
+      return new Response(null, {
+        status: 302,
+        headers: { location: authUrl, "set-cookie": stateCookie(state, secure) },
+      });
     }
 
     if (url.pathname === "/auth/callback") {
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
-      if (!code || !state || !(await consumeOAuthState(env, state))) {
+      const cookieState = getStateCookie(request);
+      const secure = url.protocol === "https:";
+      if (!code || !state || !cookieState || state !== cookieState) {
         return new Response("Invalid or expired login. Please try again.", { status: 400 });
       }
       const result = await exchangeCodeForEmail(env, code, `${url.origin}/auth/callback`);
@@ -65,11 +72,11 @@ export default {
       const email = result.email.toLowerCase();
       await upsertAccount(env.DB, email, business.id);
       const sid = await createSession(env, email, business.id);
-      const secure = url.protocol === "https:";
-      return new Response(null, {
-        status: 302,
-        headers: { location: "/dashboard", "set-cookie": sessionCookie(sid, secure) },
-      });
+      // Set the session cookie and clear the one-time state cookie.
+      const headers = new Headers({ location: "/dashboard" });
+      headers.append("set-cookie", sessionCookie(sid, secure));
+      headers.append("set-cookie", clearStateCookie(secure));
+      return new Response(null, { status: 302, headers });
     }
 
     if (url.pathname === "/auth/logout") {

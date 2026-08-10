@@ -47,3 +47,13 @@ CREATE TABLE IF NOT EXISTS accounts (
   created_at    TEXT NOT NULL,
   last_login_at TEXT
 );
+
+-- Dashboard sessions (in D1 for strong consistency — KV's eventual consistency
+-- caused flaky logins). A session id lives in an HttpOnly cookie.
+CREATE TABLE IF NOT EXISTS sessions (
+  id          TEXT PRIMARY KEY,
+  email       TEXT NOT NULL,
+  business_id TEXT NOT NULL,
+  expires_at  TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);

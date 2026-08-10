@@ -41,6 +41,20 @@ directly from Google's token endpoint over TLS.
   (moving businesses into D1 is a later step).
 - Client secret is one more secret to manage.
 
+## Update (2026-08-10) — state & sessions off KV
+
+First live login failed with "invalid or expired login": the OAuth `state` was
+stored in **KV**, but KV is only **eventually consistent**, so the key written in
+`/auth/login` wasn't reliably readable in `/auth/callback` after the ~10s Google
+round-trip. Fixes:
+- **OAuth state → an HttpOnly cookie** (`SameSite=Lax` so it survives the
+  top-level redirect back from Google) — the standard CSRF pattern, no server
+  store.
+- **Sessions → D1** (strongly consistent) instead of KV, so a just-created
+  session is immediately readable on `/dashboard`.
+
+The `SESSIONS` KV namespace is now spare.
+
 ## Alternatives considered
 
 - **Magic link** — no passwords, but the occasional inbox trip; owners disliked
