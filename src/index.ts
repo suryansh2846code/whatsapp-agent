@@ -13,6 +13,7 @@ import {
   getBusinessByOwnerEmail,
   upsertBusiness,
 } from "./businesses/store";
+import type { ActionDef, ActionField } from "./config/types";
 import { renderDashboardPage } from "./dashboard/html";
 import { listLeads, updateLead, LEAD_STATUSES } from "./crm/queries";
 import {
@@ -288,6 +289,39 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
   }
 }
 
+/** Turn an owner-entered label into a stable key, e.g. "Delivery address" -> "delivery_address". */
+function slugify(s: string): string {
+  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+/** Validate/coerce owner-submitted action definitions into safe ActionDefs. */
+function sanitizeActions(input: unknown): ActionDef[] {
+  if (!Array.isArray(input)) return [];
+  const out: ActionDef[] = [];
+  for (const a of input) {
+    if (!a || typeof a !== "object") continue;
+    const o = a as Record<string, unknown>;
+    const label = typeof o.label === "string" ? o.label.trim() : "";
+    if (!label) continue;
+    const key = typeof o.key === "string" && o.key.trim() ? slugify(o.key) : slugify(label);
+    const description = typeof o.description === "string" ? o.description.trim() : "";
+    const confirmation = typeof o.confirmation === "string" ? o.confirmation : "";
+    const fields: ActionField[] = [];
+    if (Array.isArray(o.fields)) {
+      for (const f of o.fields) {
+        if (!f || typeof f !== "object") continue;
+        const fo = f as Record<string, unknown>;
+        const flabel = typeof fo.label === "string" ? fo.label.trim() : "";
+        if (!flabel) continue;
+        const fkey = typeof fo.key === "string" && fo.key.trim() ? slugify(fo.key) : slugify(flabel);
+        fields.push({ key: fkey, label: flabel, required: Boolean(fo.required) });
+      }
+    }
+    out.push({ key, label, description, fields, confirmation });
+  }
+  return out;
+}
+
 /** CRM API — always scoped to the logged-in owner's business. */
 async function handleApi(
   url: URL,
@@ -367,6 +401,20 @@ async function handleApi(
     if (typeof body.notes === "string") fields.notes = body.notes;
     const ok = await updateLead(env.DB, bid, id, fields);
     return Response.json({ ok });
+  }
+
+  if (path === "/api/actions") {
+    const business = await getBusinessById(env, bid);
+    if (!business) return Response.json({ error: "unknown business" }, { status: 404 });
+    if (request.method === "GET") {
+      return Response.json({ actions: business.actions ?? [] });
+    }
+    if (request.method === "PUT") {
+      const body = (await request.json().catch(() => ({}))) as { actions?: unknown };
+      const actions = sanitizeActions(body.actions);
+      await upsertBusiness(env, { ...business, actions });
+      return Response.json({ ok: true, count: actions.length });
+    }
   }
 
   const submissionMatch = path.match(/^\/api\/submissions\/(\d+)$/);

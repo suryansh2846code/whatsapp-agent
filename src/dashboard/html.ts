@@ -50,6 +50,11 @@ export function renderDashboardPage(businessName: string, email: string): string
   label { font-size:12px; color:var(--muted); }
   button.save { margin-top:10px; background:var(--blue); color:#fff; border:none; padding:10px 16px; border-radius:8px; font-weight:600; cursor:pointer; }
   .savedmsg { color:var(--green); font-size:13px; margin-left:10px; }
+  .frow { display:flex; gap:8px; align-items:center; margin-top:8px; }
+  .frow > input { flex:1; margin-top:0; }
+  .reqlbl { font-size:13px; color:var(--muted); white-space:nowrap; display:flex; align-items:center; gap:4px; }
+  .reqlbl input { width:auto; margin:0; }
+  .sbtn { background:#eef2ff; border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:13px; cursor:pointer; margin-top:8px; }
   .empty { color:var(--muted); text-align:center; padding:32px 0; }
   @media (max-width:520px){ .tiles { grid-template-columns:repeat(2,1fr); } }
 </style>
@@ -64,6 +69,7 @@ export function renderDashboardPage(businessName: string, email: string): string
   <div class="tabs">
     <div class="tab active" data-tab="leads">Leads</div>
     <div class="tab" data-tab="requests">Requests</div>
+    <div class="tab" data-tab="actions">Actions</div>
     <div class="tab" data-tab="settings">Settings</div>
   </div>
   <div class="filters" id="filters"></div>
@@ -113,6 +119,7 @@ function render(){
   const filters=document.getElementById("filters");
   const list=document.getElementById("list");
   if(state.tab==="settings"){ filters.innerHTML=""; renderSettings(list); return; }
+  if(state.tab==="actions"){ filters.innerHTML=""; renderActionsEditor(list); return; }
 
   const statuses = state.tab==="leads"?LEAD_STATUSES:SUBMISSION_STATUSES;
   filters.innerHTML="";
@@ -152,6 +159,59 @@ async function renderSettings(container){
   const bar=div(""); bar.appendChild(btn); bar.appendChild(msg); c.appendChild(bar);
 }
 function inp(v){ const i=document.createElement("input"); i.type="text"; i.value=v; return i; }
+
+let actionsModel=[];
+async function renderActionsEditor(container){
+  container.innerHTML='<div class="empty">Loading…</div>';
+  const r=await fetch("/api/actions").then(x=>x.json());
+  actionsModel=(r.actions||[]).map(a=>({ label:a.label||"", description:a.description||"",
+    fields:(a.fields||[]).map(f=>({ label:f.label||f.key||"", required:!!f.required })),
+    confirmation:a.confirmation||"" }));
+  drawActions(container);
+}
+function drawActions(container){
+  container.innerHTML="";
+  const intro=div("empty"); intro.style.textAlign="left"; intro.style.padding="0 0 8px";
+  intro.textContent="Define what your bot can DO. Each action collects a few fields, then records a request.";
+  container.appendChild(intro);
+  actionsModel.forEach((a)=>{
+    const c=div("card");
+    const nm=inp(a.label); nm.placeholder="e.g. Order"; nm.oninput=()=>{ a.label=nm.value; };
+    c.appendChild(labelled("Action name", nm));
+    const ds=inp(a.description); ds.placeholder="e.g. when a customer wants to buy something"; ds.oninput=()=>{ a.description=ds.value; };
+    c.appendChild(labelled("When should the bot use this?", ds));
+    const fwrap=div(""); const fl=document.createElement("label"); fl.textContent="Fields to collect"; fwrap.appendChild(fl);
+    a.fields.forEach((f)=>{
+      const row=div("frow");
+      const fin=inp(f.label); fin.placeholder="e.g. Item"; fin.oninput=()=>{ f.label=fin.value; }; row.appendChild(fin);
+      const rl=document.createElement("label"); rl.className="reqlbl";
+      const cb=document.createElement("input"); cb.type="checkbox"; cb.checked=f.required; cb.onchange=()=>{ f.required=cb.checked; };
+      rl.appendChild(cb); rl.appendChild(document.createTextNode("required")); row.appendChild(rl);
+      const del=btnSmall("✕"); del.onclick=()=>{ a.fields.splice(a.fields.indexOf(f),1); drawActions(container); }; row.appendChild(del);
+      fwrap.appendChild(row);
+    });
+    const addF=btnSmall("+ field"); addF.onclick=()=>{ a.fields.push({label:"",required:true}); drawActions(container); }; fwrap.appendChild(addF);
+    c.appendChild(fwrap);
+    const ph=a.fields.map(f=>"{"+slug(f.label)+"}").filter(x=>x!=="{}").concat("{business}").join(" ");
+    const cf=document.createElement("textarea"); cf.value=a.confirmation; cf.placeholder="Thanks! We've got your request."; cf.oninput=()=>{ a.confirmation=cf.value; };
+    c.appendChild(labelled("Confirmation message — you can use: "+ph, cf));
+    const delA=btnSmall("Remove action"); delA.onclick=()=>{ actionsModel.splice(actionsModel.indexOf(a),1); drawActions(container); }; c.appendChild(delA);
+    container.appendChild(c);
+  });
+  const bar=div("");
+  const addA=btnSmall("+ Add action"); addA.onclick=()=>{ actionsModel.push({label:"",description:"",fields:[],confirmation:""}); drawActions(container); };
+  const save=document.createElement("button"); save.className="save"; save.textContent="Save actions"; save.style.marginLeft="8px";
+  const msg=document.createElement("span"); msg.className="savedmsg";
+  save.onclick=async()=>{ save.disabled=true; msg.textContent="Saving…";
+    const payload=actionsModel.filter(a=>a.label.trim()).map(a=>({ label:a.label.trim(), description:a.description.trim(),
+      fields:a.fields.filter(f=>f.label.trim()).map(f=>({ label:f.label.trim(), required:!!f.required })),
+      confirmation:a.confirmation }));
+    await fetch("/api/actions",{ method:"PUT", headers:{"content-type":"application/json"}, body:JSON.stringify({actions:payload}) });
+    save.disabled=false; msg.textContent="Saved ✓"; setTimeout(()=>msg.textContent="",2500); };
+  bar.appendChild(addA); bar.appendChild(save); bar.appendChild(msg); container.appendChild(bar);
+}
+function slug(s){ return (s||"").toLowerCase().trim().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,""); }
+function btnSmall(t){ const b=document.createElement("button"); b.type="button"; b.className="sbtn"; b.textContent=t; return b; }
 
 function waLink(phone){ const a=document.createElement("a"); a.className="wa";
   a.href="https://wa.me/"+phone.replace(/\\D/g,""); a.target="_blank"; a.textContent="WhatsApp"; return a; }
