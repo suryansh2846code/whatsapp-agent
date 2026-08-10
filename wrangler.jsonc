@@ -18,5 +18,14 @@
   // KV store for per-parent conversation memory (short history + TTL).
   "kv_namespaces": [
     { "binding": "CONVERSATIONS", "id": "9dc4b75450bb4df48d1e970c6eab658d" }
+  ],
+
+  // D1 (SQLite) database — source of truth for leads/bookings + the CRM.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "whatsapp-agent-db",
+      "database_id": "353d8a25-f044-4565-a0f2-2b8822d6a7c5"
+    }
   ]
 }

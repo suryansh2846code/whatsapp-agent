@@ -59,6 +59,9 @@ export interface Env {
    */
   CONVERSATIONS: KVNamespace;
 
+  /** D1 (SQLite) database — source of truth for leads/bookings + the CRM. */
+  DB: D1Database;
+
   /** Resend API key for sending owner alert emails on new bookings (ADR 0015). */
   RESEND_API_KEY: string;
   /** From-address for alert emails. Optional; defaults to Resend's test sender. */

@@ -264,7 +264,7 @@ async function handleDebugLead(request: Request, env: Env): Promise<Response> {
       phone: body.phone,
       message: body.message,
     });
-    return Response.json({ result, sheetId: business.leadSheetId });
+    return Response.json({ result });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "unknown error" },
