@@ -37,3 +37,4 @@ one — the history is the point).
 - [0018 — CRM dashboard: server-rendered, mobile-first + JSON API](0018-crm-dashboard.md)
 - [0019 — Owner-editable bot knowledge (D1) + dashboard analytics](0019-editable-knowledge.md)
 - [0020 — Businesses in D1 (self-serve foundation)](0020-businesses-in-d1.md)
+- [0021 — Self-serve signup + dashboard configuration](0021-self-serve-signup-config.md)

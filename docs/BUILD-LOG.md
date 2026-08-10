@@ -529,3 +529,25 @@ read D1 (fees → 7777). Nothing breaks pre-promotion.
 
 **Next:** self-serve B (signup: a new Google email creates a business) and C
 (edit name / WhatsApp number ID / languages from the dashboard).
+
+---
+
+## Step 19 — Self-serve B + C: signup + dashboard config (2026-08-10)
+
+**Goal:** finish self-serve (ADR 0021).
+
+**What we made**
+- **Signup:** the Google auth callback now *creates* a business (`upsertBusiness`)
+  if none owns the email, then logs them in — open self-serve signup.
+- **Config editing:** `/api/settings` GET/PATCH now cover `displayName`,
+  `whatsappPhoneNumberId`, `languages` (+ knowledge/fallback). The dashboard
+  Settings tab has fields for all of them.
+
+**Verified locally (2026-08-10):** edited name → "Sunshine Kids" + WhatsApp number
+ID → "TESTPHN999" + languages via `/api/settings`; a message to the NEW number
+routed correctly (→ "7777"); D1 row reflected the changes. Signup path is wired
+(needs a fresh Gmail to see the created business in the browser).
+
+**Self-serve complete** (businesses in D1 + signup + full dashboard config). The
+one manual piece remains the WhatsApp number connection (Meta Embedded Signup is
+a separate effort). **Next:** vertical tools (ordering/appointments/payments).
