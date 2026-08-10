@@ -33,3 +33,4 @@ one — the history is the point).
 - [0014 — Voice notes via Groq Whisper](0014-voice-notes-whisper.md)
 - [0015 — Owner booking alerts via Resend (email)](0015-owner-alerts-resend.md)
 - [0016 — Move leads/bookings to Cloudflare D1 (CRM data store)](0016-d1-datastore.md)
+- [0017 — Owner dashboard auth via Google sign-in + D1 accounts](0017-owner-auth-google.md)

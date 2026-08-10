@@ -423,3 +423,30 @@ booking → one `bookings` row, `status: requested`. Queried via
 `wrangler d1 execute --local`.
 
 **Next:** CRM Phase 2 — owner auth (magic link + sessions).
+
+---
+
+## Step 15 — CRM Phase 2: owner auth (Google sign-in) (2026-08-10)
+
+**Goal:** owners log in (once, then a long session) and see only their business
+(ADR 0017). Chose Google sign-in over magic link (owners disliked re-clicking
+emails) and over passwords.
+
+**What we made**
+- D1 `accounts` table (email unique → business_id); `SESSIONS` KV namespace.
+- `auth/google.ts` (build authorize URL, exchange code → email),
+  `auth/accounts.ts` (upsert account), `auth/session.ts` (sessions + CSRF state
+  in KV, cookie helpers).
+- `config/index.ts` — `findBusinessByOwnerEmail` (gates login).
+- `index.ts` routes: `/auth/login`, `/auth/callback`, `/auth/logout`, and a
+  `/dashboard` placeholder guarded by the session.
+- `wrangler.jsonc` — `GOOGLE_OAUTH_CLIENT_ID` var + `SESSIONS` KV; env gains the
+  OAuth id/secret + `SESSIONS`.
+
+**Verified locally (2026-08-10):** `/auth/login` → 302 to Google with the right
+client_id/scope/state; `/dashboard` without a session → 302 to `/auth/login`.
+Full code-exchange callback needs the client secret + a real browser Google
+login (owner's step).
+
+**Next:** CRM Phase 3 — the dashboard UI (list/filter leads & bookings, edit
+status & notes) behind `requireAuth`.
