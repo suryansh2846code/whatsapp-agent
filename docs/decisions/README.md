@@ -39,3 +39,4 @@ one — the history is the point).
 - [0020 — Businesses in D1 (self-serve foundation)](0020-businesses-in-d1.md)
 - [0021 — Self-serve signup + dashboard configuration](0021-self-serve-signup-config.md)
 - [0022 — Generic configurable action engine](0022-generic-action-engine.md)
+- [0023 — Owner-facing action editor (no-code)](0023-owner-action-editor.md)

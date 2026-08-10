@@ -581,3 +581,25 @@ a new order action, defined only as data):
 
 **Next:** the owner-facing **action editor** in the dashboard (define your own
 actions, no code), then pluggable tool handlers for payments/calendar.
+
+---
+
+## Step 21 — Owner action editor (no-code) (2026-08-10)
+
+**Goal:** owners define their own actions from the dashboard (ADR 0023).
+
+**What we made**
+- `GET`/`PUT /api/actions` (PUT replaces the set; server slugifies labels →
+  keys, sanitizes). Dashboard **Actions** tab: a form builder (add/remove
+  actions + fields, required checkboxes, confirmation with `{placeholder}` hints).
+  Owners never see keys.
+
+**Verified locally (2026-08-10):** `PUT` an "Appointment" action (Service/Date/
+Time) → keys auto-generated (appointment / service,date,time) → `/debug/agent`
+"book a haircut tomorrow at 3pm" → "Booked your haircut for 2026-08-11 at 15:00"
+→ recorded an `appointment` submission. Owner-defined feature, working, zero code.
+
+**Milestone:** a no-code, self-serve WhatsApp agent + CRM — owners sign up,
+configure the bot, define its actions, and manage results, all from the
+dashboard. **Next:** pluggable tool handlers (payments/calendar), WhatsApp owner
+alerts, run-phase reminders, signup gating/billing.
