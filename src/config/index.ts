@@ -24,4 +24,13 @@ export function findBusinessByPhoneNumberId(
   return BUSINESSES.find((b) => b.whatsappPhoneNumberId === phoneNumberId);
 }
 
+/**
+ * Find the business a login email belongs to (case-insensitive) — used to gate
+ * dashboard sign-in: only a business's own `ownerEmail` may log in.
+ */
+export function findBusinessByOwnerEmail(email: string): BusinessConfig | undefined {
+  const e = email.trim().toLowerCase();
+  return BUSINESSES.find((b) => (b.ownerEmail ?? "").trim().toLowerCase() === e && e !== "");
+}
+
 export type { BusinessConfig };

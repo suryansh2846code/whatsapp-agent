@@ -36,3 +36,14 @@ CREATE TABLE IF NOT EXISTS bookings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_bookings_business ON bookings (business_id, updated_at);
+
+-- Owner accounts for the dashboard. One account per email; linked to a business
+-- (matched to that business's ownerEmail at first login). Created via Google
+-- sign-in (ADR 0017).
+CREATE TABLE IF NOT EXISTS accounts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  email         TEXT NOT NULL UNIQUE,
+  business_id   TEXT NOT NULL,
+  created_at    TEXT NOT NULL,
+  last_login_at TEXT
+);

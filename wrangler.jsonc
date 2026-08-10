@@ -15,9 +15,16 @@
     "enabled": true
   },
 
-  // KV store for per-parent conversation memory (short history + TTL).
+  // Non-secret settings. The OAuth client ID is public (the client secret is a
+  // Worker secret, not here).
+  "vars": {
+    "GOOGLE_OAUTH_CLIENT_ID": "601574887023-tmhsrnoaf4nhr5ik4n0odb1p791k6cao.apps.googleusercontent.com"
+  },
+
+  // KV: conversation memory, and auth sessions/OAuth-state.
   "kv_namespaces": [
-    { "binding": "CONVERSATIONS", "id": "9dc4b75450bb4df48d1e970c6eab658d" }
+    { "binding": "CONVERSATIONS", "id": "9dc4b75450bb4df48d1e970c6eab658d" },
+    { "binding": "SESSIONS", "id": "794847266dd1484c9af0f430ef7ef13f" }
   ],
 
   // D1 (SQLite) database — source of truth for leads/bookings + the CRM.

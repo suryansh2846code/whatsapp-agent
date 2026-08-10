@@ -7,7 +7,7 @@
  * real WhatsApp webhook.
  */
 import type { Env } from "./env";
-import { findBusinessByPhoneNumberId } from "./config";
+import { findBusinessByPhoneNumberId, findBusinessByOwnerEmail } from "./config";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
 import { runConversationTurn } from "./memory/conversation";
@@ -17,6 +17,17 @@ import { createWhatsAppClient, parseIncomingMessages, verifyMetaSignature } from
 import type { IncomingMessage } from "./whatsapp";
 import { transcribeAudio } from "./voice/transcribe";
 import { sendBookingAlert } from "./alerts/email";
+import { buildAuthUrl, exchangeCodeForEmail } from "./auth/google";
+import { upsertAccount } from "./auth/accounts";
+import {
+  createSession,
+  readSession,
+  destroySession,
+  sessionCookie,
+  clearSessionCookie,
+  saveOAuthState,
+  consumeOAuthState,
+} from "./auth/session";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -27,6 +38,60 @@ export default {
       return new Response("whatsapp-agent — alive", {
         headers: { "content-type": "text/plain" },
       });
+    }
+
+    // --- Dashboard auth (Google sign-in) ---
+    if (url.pathname === "/auth/login") {
+      const state = crypto.randomUUID();
+      await saveOAuthState(env, state);
+      const redirectUri = `${url.origin}/auth/callback`;
+      return Response.redirect(buildAuthUrl(env.GOOGLE_OAUTH_CLIENT_ID, redirectUri, state), 302);
+    }
+
+    if (url.pathname === "/auth/callback") {
+      const code = url.searchParams.get("code");
+      const state = url.searchParams.get("state");
+      if (!code || !state || !(await consumeOAuthState(env, state))) {
+        return new Response("Invalid or expired login. Please try again.", { status: 400 });
+      }
+      const result = await exchangeCodeForEmail(env, code, `${url.origin}/auth/callback`);
+      if (!result || !result.emailVerified) {
+        return new Response("Login failed.", { status: 400 });
+      }
+      const business = findBusinessByOwnerEmail(result.email);
+      if (!business) {
+        return new Response("No account for this email — contact us to get set up.", { status: 403 });
+      }
+      const email = result.email.toLowerCase();
+      await upsertAccount(env.DB, email, business.id);
+      const sid = await createSession(env, email, business.id);
+      const secure = url.protocol === "https:";
+      return new Response(null, {
+        status: 302,
+        headers: { location: "/dashboard", "set-cookie": sessionCookie(sid, secure) },
+      });
+    }
+
+    if (url.pathname === "/auth/logout") {
+      await destroySession(env, request);
+      const secure = url.protocol === "https:";
+      return new Response(null, {
+        status: 302,
+        headers: { location: "/auth/login", "set-cookie": clearSessionCookie(secure) },
+      });
+    }
+
+    // Dashboard placeholder (real UI = Phase 3). Requires a session.
+    if (url.pathname === "/dashboard") {
+      const session = await readSession(env, request);
+      if (!session) {
+        return new Response(null, { status: 302, headers: { location: "/auth/login" } });
+      }
+      return new Response(
+        `<p>Logged in as <b>${session.email}</b> (business: ${session.businessId}).</p>` +
+          `<p>Dashboard UI comes in Phase 3. <a href="/auth/logout">Log out</a></p>`,
+        { headers: { "content-type": "text/html; charset=utf-8" } },
+      );
     }
 
     // WhatsApp webhook VERIFICATION (Meta calls this once, with a GET, when you

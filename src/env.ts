@@ -62,6 +62,13 @@ export interface Env {
   /** D1 (SQLite) database — source of truth for leads/bookings + the CRM. */
   DB: D1Database;
 
+  /** KV for dashboard auth: sessions (~30d) and OAuth CSRF state (~10m). */
+  SESSIONS: KVNamespace;
+  /** Google OAuth client ID (public) — for owner "Sign in with Google". */
+  GOOGLE_OAUTH_CLIENT_ID: string;
+  /** Google OAuth client secret (secret) — server-side code exchange. */
+  GOOGLE_OAUTH_CLIENT_SECRET: string;
+
   /** Resend API key for sending owner alert emails on new bookings (ADR 0015). */
   RESEND_API_KEY: string;
   /** From-address for alert emails. Optional; defaults to Resend's test sender. */

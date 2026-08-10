@@ -32,5 +32,9 @@ GRAPH_API_VERSION=v21.0
 RESEND_API_KEY=your_resend_api_key
 ALERT_FROM_EMAIL=onboarding@resend.dev
 
+# Google OAuth for dashboard sign-in. The CLIENT_ID is public and lives in
+# wrangler.jsonc (vars); only the SECRET is here / a Worker secret.
+GOOGLE_OAUTH_CLIENT_SECRET=your_google_oauth_client_secret
+
 # Enables POST /debug/ask and /debug/lead for local testing. Leave OUT in production.
 ENABLE_DEBUG_ROUTES=true
