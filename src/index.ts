@@ -17,6 +17,7 @@ import {
   LEAD_STATUSES,
   BOOKING_STATUSES,
 } from "./crm/queries";
+import { getEffectiveSettings, withEffectiveSettings, upsertSettings } from "./crm/settings";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
 import { runConversationTurn } from "./memory/conversation";
@@ -223,12 +224,15 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
       }
       if (!text) continue; // nothing usable (e.g. empty transcription)
 
+      // Use the owner's edited knowledge/fallback if they've set any (else config).
+      const effective = await withEffectiveSettings(env.DB, business);
+
       // Decide: answer a question, or capture a visit request — with memory of
       // the recent conversation (so multi-message bookings work).
       const decision = await runConversationTurn(
         env.CONVERSATIONS,
         llm,
-        business,
+        effective,
         msg.from,
         text,
       );
@@ -310,6 +314,27 @@ async function handleApi(
   }
   if (request.method === "GET" && path === "/api/bookings") {
     return Response.json({ bookings: await listBookings(env.DB, bid) });
+  }
+
+  if (path === "/api/settings") {
+    const business = findBusinessById(bid);
+    if (!business) return Response.json({ error: "unknown business" }, { status: 404 });
+    if (request.method === "GET") {
+      return Response.json(await getEffectiveSettings(env.DB, business));
+    }
+    if (request.method === "PATCH") {
+      const body = (await request.json().catch(() => ({}))) as {
+        knowledge?: string;
+        fallbackMessage?: string;
+      };
+      const current = await getEffectiveSettings(env.DB, business);
+      await upsertSettings(env.DB, bid, {
+        knowledge: typeof body.knowledge === "string" ? body.knowledge : current.knowledge,
+        fallbackMessage:
+          typeof body.fallbackMessage === "string" ? body.fallbackMessage : current.fallbackMessage,
+      });
+      return Response.json({ ok: true });
+    }
   }
 
   const leadMatch = path.match(/^\/api\/leads\/(\d+)$/);
@@ -429,7 +454,8 @@ async function handleDebugDecide(request: Request, env: Env): Promise<Response> 
 
     const llm = createLlmProvider(env);
     const phone = body.phone ?? "+910000000000";
-    const decision = await runConversationTurn(env.CONVERSATIONS, llm, business, phone, body.message);
+    const effective = await withEffectiveSettings(env.DB, business);
+    const decision = await runConversationTurn(env.CONVERSATIONS, llm, effective, phone, body.message);
 
     let bookingResult: string | null = null;
     let alertSent = false;

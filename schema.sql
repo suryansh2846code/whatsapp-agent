@@ -57,3 +57,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at  TEXT NOT NULL,
   created_at  TEXT NOT NULL
 );
+
+-- Per-business editable settings (the FAQ knowledge + fallback), so owners can
+-- update them from the dashboard. If a row is absent/blank the code config is
+-- used as the default (ADR 0019).
+CREATE TABLE IF NOT EXISTS business_settings (
+  business_id      TEXT PRIMARY KEY,
+  knowledge        TEXT,
+  fallback_message TEXT,
+  updated_at       TEXT NOT NULL
+);
