@@ -33,4 +33,9 @@ export function findBusinessByOwnerEmail(email: string): BusinessConfig | undefi
   return BUSINESSES.find((b) => (b.ownerEmail ?? "").trim().toLowerCase() === e && e !== "");
 }
 
+/** Look up a business by its id (e.g. from a session's business_id). */
+export function findBusinessById(id: string): BusinessConfig | undefined {
+  return BUSINESSES.find((b) => b.id === id);
+}
+
 export type { BusinessConfig };

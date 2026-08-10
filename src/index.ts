@@ -7,7 +7,16 @@
  * real WhatsApp webhook.
  */
 import type { Env } from "./env";
-import { findBusinessByPhoneNumberId, findBusinessByOwnerEmail } from "./config";
+import { findBusinessByPhoneNumberId, findBusinessByOwnerEmail, findBusinessById } from "./config";
+import { renderDashboardPage } from "./dashboard/html";
+import {
+  listLeads,
+  updateLead,
+  listBookings,
+  updateBooking,
+  LEAD_STATUSES,
+  BOOKING_STATUSES,
+} from "./crm/queries";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
 import { runConversationTurn } from "./memory/conversation";
@@ -29,6 +38,7 @@ import {
   clearStateCookie,
   getStateCookie,
 } from "./auth/session";
+import type { Session } from "./auth/session";
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -88,17 +98,23 @@ export default {
       });
     }
 
-    // Dashboard placeholder (real UI = Phase 3). Requires a session.
+    // Dashboard (the CRM UI). Requires a session.
     if (url.pathname === "/dashboard") {
       const session = await readSession(env, request);
       if (!session) {
         return new Response(null, { status: 302, headers: { location: "/auth/login" } });
       }
-      return new Response(
-        `<p>Logged in as <b>${session.email}</b> (business: ${session.businessId}).</p>` +
-          `<p>Dashboard UI comes in Phase 3. <a href="/auth/logout">Log out</a></p>`,
-        { headers: { "content-type": "text/html; charset=utf-8" } },
-      );
+      const business = findBusinessById(session.businessId);
+      return new Response(renderDashboardPage(business?.displayName ?? "Dashboard", session.email), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    }
+
+    // CRM API — all endpoints require a session and are scoped to its business.
+    if (url.pathname.startsWith("/api/")) {
+      const session = await readSession(env, request);
+      if (!session) return Response.json({ error: "unauthorized" }, { status: 401 });
+      return handleApi(url, request, env, session);
     }
 
     // WhatsApp webhook VERIFICATION (Meta calls this once, with a GET, when you
@@ -277,6 +293,53 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
       console.error("failed to process message:", err);
     }
   }
+}
+
+/** CRM API — always scoped to the logged-in owner's business. */
+async function handleApi(
+  url: URL,
+  request: Request,
+  env: Env,
+  session: Session,
+): Promise<Response> {
+  const path = url.pathname;
+  const bid = session.businessId;
+
+  if (request.method === "GET" && path === "/api/leads") {
+    return Response.json({ leads: await listLeads(env.DB, bid) });
+  }
+  if (request.method === "GET" && path === "/api/bookings") {
+    return Response.json({ bookings: await listBookings(env.DB, bid) });
+  }
+
+  const leadMatch = path.match(/^\/api\/leads\/(\d+)$/);
+  if (request.method === "PATCH" && leadMatch) {
+    const id = Number(leadMatch[1]);
+    const body = (await request.json().catch(() => ({}))) as { status?: string; notes?: string };
+    const fields: { status?: string; notes?: string } = {};
+    if (typeof body.status === "string") {
+      if (!(LEAD_STATUSES as readonly string[]).includes(body.status)) {
+        return Response.json({ error: "invalid status" }, { status: 400 });
+      }
+      fields.status = body.status;
+    }
+    if (typeof body.notes === "string") fields.notes = body.notes;
+    const ok = await updateLead(env.DB, bid, id, fields);
+    return Response.json({ ok });
+  }
+
+  const bookingMatch = path.match(/^\/api\/bookings\/(\d+)$/);
+  if (request.method === "PATCH" && bookingMatch) {
+    const id = Number(bookingMatch[1]);
+    const body = (await request.json().catch(() => ({}))) as { status?: string };
+    if (typeof body.status !== "string" || !(BOOKING_STATUSES as readonly string[]).includes(body.status)) {
+      return Response.json({ error: "invalid status" }, { status: 400 });
+    }
+    const ok = await updateBooking(env.DB, bid, id, body.status);
+    return Response.json({ ok });
+  }
+
+  return Response.json({ error: "not found" }, { status: 404 });
 }
 
 async function handleDebugAsk(request: Request, env: Env): Promise<Response> {
