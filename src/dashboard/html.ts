@@ -44,7 +44,7 @@ export function renderDashboardPage(businessName: string, email: string): string
   .card .msg { white-space:pre-line; background:var(--bg); border-radius:8px; padding:8px; margin-top:8px; font-size:14px; max-height:140px; overflow:auto; }
   .card .req { font-weight:600; margin-top:6px; }
   .wa { background:var(--green); color:#fff; padding:6px 10px; border-radius:8px; font-size:13px; text-decoration:none; white-space:nowrap; }
-  select, textarea { font:inherit; width:100%; padding:8px; border:1px solid var(--line); border-radius:8px; margin-top:8px; background:var(--card); color:var(--ink); }
+  select, textarea, input { font:inherit; width:100%; padding:8px; border:1px solid var(--line); border-radius:8px; margin-top:8px; background:var(--card); color:var(--ink); }
   textarea { min-height:44px; resize:vertical; }
   .knowledge { min-height:280px; font-family: ui-monospace, Menlo, monospace; font-size:13px; }
   label { font-size:12px; color:var(--muted); }
@@ -130,6 +130,12 @@ async function renderSettings(container){
   const info=div("empty"); info.textContent="Loading settings…"; c.appendChild(info); container.appendChild(c);
   const s=await fetch("/api/settings").then(r=>r.json());
   c.innerHTML="";
+  const name=inp(s.displayName||"");
+  c.appendChild(labelled("Business name", name));
+  const wa=inp(s.whatsappPhoneNumberId||"");
+  c.appendChild(labelled("WhatsApp phone number ID (from Meta — connects your number to the bot)", wa));
+  const langs=inp((s.languages||["English"]).join(", "));
+  c.appendChild(labelled("Languages (comma-separated)", langs));
   const ta=document.createElement("textarea"); ta.className="knowledge"; ta.value=s.knowledge||"";
   c.appendChild(labelled("Knowledge — the facts the bot answers from (fees, timings, etc.)", ta));
   const fb=document.createElement("textarea"); fb.value=s.fallbackMessage||"";
@@ -138,10 +144,14 @@ async function renderSettings(container){
   const msg=document.createElement("span"); msg.className="savedmsg";
   btn.onclick=async()=>{ btn.disabled=true; msg.textContent="Saving…";
     await fetch("/api/settings",{ method:"PATCH", headers:{"content-type":"application/json"},
-      body:JSON.stringify({ knowledge:ta.value, fallbackMessage:fb.value }) });
-    btn.disabled=false; msg.textContent="Saved ✓"; setTimeout(()=>msg.textContent="",2500); };
+      body:JSON.stringify({ displayName:name.value, whatsappPhoneNumberId:wa.value,
+        languages:langs.value.split(",").map(x=>x.trim()).filter(Boolean),
+        knowledge:ta.value, fallbackMessage:fb.value }) });
+    btn.disabled=false; msg.textContent="Saved ✓"; setTimeout(()=>msg.textContent="",2500);
+    document.getElementById("biz").textContent=name.value||BIZ; };
   const bar=div(""); bar.appendChild(btn); bar.appendChild(msg); c.appendChild(bar);
 }
+function inp(v){ const i=document.createElement("input"); i.type="text"; i.value=v; return i; }
 
 function waLink(phone){ const a=document.createElement("a"); a.className="wa";
   a.href="https://wa.me/"+phone.replace(/\\D/g,""); a.target="_blank"; a.textContent="WhatsApp"; return a; }

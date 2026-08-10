@@ -80,11 +80,24 @@ export default {
       if (!result || !result.emailVerified) {
         return new Response("Login failed.", { status: 400 });
       }
-      const business = await getBusinessByOwnerEmail(env, result.email);
-      if (!business) {
-        return new Response("No account for this email — contact us to get set up.", { status: 403 });
-      }
       const email = result.email.toLowerCase();
+      // Self-serve signup: if no business owns this email yet, create one. The
+      // owner then configures it (name, WhatsApp number, knowledge) in the
+      // dashboard.
+      let business = await getBusinessByOwnerEmail(env, email);
+      if (!business) {
+        business = {
+          id: "biz_" + crypto.randomUUID(),
+          displayName: "My Business",
+          ownerEmail: email,
+          whatsappPhoneNumberId: "",
+          languages: ["English"],
+          knowledge: "",
+          fallbackMessage:
+            "Thanks for your message — someone from our team will get back to you shortly.",
+        };
+        await upsertBusiness(env, business);
+      }
       await upsertAccount(env.DB, email, business.id);
       const sid = await createSession(env, email, business.id);
       // Set the session cookie and clear the one-time state cookie.
@@ -323,18 +336,41 @@ async function handleApi(
     if (!business) return Response.json({ error: "unknown business" }, { status: 404 });
     if (request.method === "GET") {
       return Response.json({
+        displayName: business.displayName,
+        whatsappPhoneNumberId: business.whatsappPhoneNumberId,
+        languages: business.languages,
         knowledge: business.knowledge,
         fallbackMessage: business.fallbackMessage,
       });
     }
     if (request.method === "PATCH") {
       const body = (await request.json().catch(() => ({}))) as {
+        displayName?: string;
+        whatsappPhoneNumberId?: string;
+        languages?: string[] | string;
         knowledge?: string;
         fallbackMessage?: string;
       };
+      let languages = business.languages;
+      if (Array.isArray(body.languages)) {
+        languages = body.languages.map(String).map((s) => s.trim()).filter(Boolean);
+      } else if (typeof body.languages === "string") {
+        languages = body.languages.split(",").map((s) => s.trim()).filter(Boolean);
+      }
+      if (languages.length === 0) languages = ["English"];
+
       // Upsert the whole business row (promotes a config business into D1).
       await upsertBusiness(env, {
         ...business,
+        displayName:
+          typeof body.displayName === "string" && body.displayName.trim()
+            ? body.displayName.trim()
+            : business.displayName,
+        whatsappPhoneNumberId:
+          typeof body.whatsappPhoneNumberId === "string"
+            ? body.whatsappPhoneNumberId.trim()
+            : business.whatsappPhoneNumberId,
+        languages,
         knowledge: typeof body.knowledge === "string" ? body.knowledge : business.knowledge,
         fallbackMessage:
           typeof body.fallbackMessage === "string" ? body.fallbackMessage : business.fallbackMessage,
