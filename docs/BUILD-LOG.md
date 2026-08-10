@@ -551,3 +551,33 @@ routed correctly (→ "7777"); D1 row reflected the changes. Signup path is wire
 **Self-serve complete** (businesses in D1 + signup + full dashboard config). The
 one manual piece remains the WhatsApp number connection (Meta Embedded Signup is
 a separate effort). **Next:** vertical tools (ordering/appointments/payments).
+
+---
+
+## Step 20 — Generic configurable action engine (2026-08-10)
+
+**Goal:** stop hardcoding verticals — make features DATA. Any "collect info"
+action (booking, order, quote…) is configured, not coded (ADR 0022).
+
+**What we made**
+- `ActionDef` on the business (`actions` JSON column). `brain/agent.ts` —
+  `runAgent`: one LLM call classifies question vs action + extracts fields; code
+  computes missing required fields, completes → submission + templated
+  confirmation. `submissions` table + `submissions/store.ts` (one table for all
+  verticals). `memory/conversation.ts` now carries a `pending` action state for
+  multi-turn. Owner alert generalized (`sendSubmissionAlert`). Dashboard
+  "Bookings" tab → **"Requests"** (any submission type). `/debug/decide` →
+  `/debug/agent`.
+- **Retired:** `brain/booking.ts`, `src/bookings/*`, `crm/settings.ts`, and the
+  bookings-table path — booking is now just the `book_visit` action.
+
+**Verified locally (2026-08-10):** with a business given TWO actions (book_visit +
+a new order action, defined only as data):
+- Order: "2 chocolate cakes" → asked for address → "123 MG Road" → recorded a
+  `place_order` submission {item, quantity, address}.
+- Booking: "visit saturday 11am" → recorded a `book_visit` {date:2026-08-15,
+  time:11:00}. Question → grounded answer, no submission. The order path was
+  never coded.
+
+**Next:** the owner-facing **action editor** in the dashboard (define your own
+actions, no code), then pluggable tool handlers for payments/calendar.
