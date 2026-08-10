@@ -399,3 +399,27 @@ domain must be verified to email arbitrary owners.)
 
 **Next:** WhatsApp-template owner alert; permanent WhatsApp token; or the run
 phase (reminders).
+
+---
+
+## Step 14 — CRM Phase 1: move data to Cloudflare D1 (2026-08-10)
+
+**Goal:** foundation for the owner dashboard + CRM — a real database (ADR 0016).
+First of three phases (data → auth → dashboard UI).
+
+**What we made**
+- Created a D1 database `whatsapp-agent-db`; bound as `DB` in `wrangler.jsonc`.
+- `schema.sql` — `leads` and `bookings` tables, each `UNIQUE(business_id, phone)`,
+  with `status`/`notes` for the CRM. Applied to remote + local.
+- `leads/d1.ts` + `bookings/d1.ts` — D1 adapters implementing the existing
+  `LeadStore` / `BookingStore` interfaces (bot code unchanged). Dedup is now
+  atomic SQL upsert (kills the old race).
+- Switched the factories (`leads/index.ts`, `bookings/index.ts`) from Sheets to
+  D1; Sheets adapters kept parked. `env.ts` gains `DB: D1Database`.
+
+**Verified locally (2026-08-10):** two `/debug/lead` calls (same phone) →
+one row, `message_count: 2`, messages joined, `status: new`; a `/debug/decide`
+booking → one `bookings` row, `status: requested`. Queried via
+`wrangler d1 execute --local`.
+
+**Next:** CRM Phase 2 — owner auth (magic link + sessions).

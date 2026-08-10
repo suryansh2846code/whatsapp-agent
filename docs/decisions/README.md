@@ -32,3 +32,4 @@ one — the history is the point).
 - [0013 — Multi-turn conversation memory via Cloudflare KV](0013-conversation-memory-kv.md)
 - [0014 — Voice notes via Groq Whisper](0014-voice-notes-whisper.md)
 - [0015 — Owner booking alerts via Resend (email)](0015-owner-alerts-resend.md)
+- [0016 — Move leads/bookings to Cloudflare D1 (CRM data store)](0016-d1-datastore.md)
