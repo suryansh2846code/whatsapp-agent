@@ -504,3 +504,28 @@ bot used the owner-edited D1 knowledge. Tiles render from the leads/bookings API
 
 **Note:** the live bot still uses config knowledge until an owner edits it in the
 dashboard (edits are per-business in D1, not the repo).
+
+---
+
+## Step 18 — Self-serve Phase A: businesses in D1 (2026-08-10)
+
+**Goal:** move tenants from code → D1 so onboarding/config can be self-serve
+(ADR 0020). First of self-serve A→B→C.
+
+**What we made**
+- D1 `businesses` table (all business fields). `businesses/store.ts`:
+  `getBusinessById/ByPhoneNumberId/ByOwnerEmail` (D1 first, **config fallback**)
+  + `upsertBusiness`.
+- Rewired every lookup (webhook routing, auth login, dashboard, /api/settings) to
+  the async store. Editing settings now `upsertBusiness` — **promoting** a config
+  business into D1. Returned business is effective, so `business_settings` /
+  `crm/settings.ts` were retired (business_settings table left unused).
+- `leadSheetId` made optional (leads are in D1; Sheets parked).
+
+**Verified locally (2026-08-10):** with an empty businesses table, routing falls
+back to config (fees → ₹4,000); editing knowledge via `/api/settings` created a
+`businesses` row (id, name, phone id, knowledge all carried over); routing then
+read D1 (fees → 7777). Nothing breaks pre-promotion.
+
+**Next:** self-serve B (signup: a new Google email creates a business) and C
+(edit name / WhatsApp number ID / languages from the dashboard).
