@@ -63,7 +63,7 @@ export function renderDashboardPage(businessName: string, email: string): string
   <div class="tiles" id="stats"></div>
   <div class="tabs">
     <div class="tab active" data-tab="leads">Leads</div>
-    <div class="tab" data-tab="bookings">Bookings</div>
+    <div class="tab" data-tab="requests">Requests</div>
     <div class="tab" data-tab="settings">Settings</div>
   </div>
   <div class="filters" id="filters"></div>
@@ -72,8 +72,8 @@ export function renderDashboardPage(businessName: string, email: string): string
 <script>
 const BIZ = ${bn}, EMAIL = ${em};
 const LEAD_STATUSES = ["new","contacted","converted","lost"];
-const BOOKING_STATUSES = ["requested","confirmed","done","cancelled"];
-let state = { tab:"leads", filter:"all", leads:[], bookings:[] };
+const SUBMISSION_STATUSES = ["new","in_progress","done","cancelled"];
+let state = { tab:"leads", filter:"all", leads:[], submissions:[] };
 
 document.getElementById("biz").textContent = BIZ;
 document.getElementById("who").textContent = EMAIL;
@@ -81,10 +81,10 @@ document.getElementById("who").textContent = EMAIL;
 async function load(){
   const [l,b] = await Promise.all([
     fetch("/api/leads").then(r=>r.json()),
-    fetch("/api/bookings").then(r=>r.json()),
+    fetch("/api/submissions").then(r=>r.json()),
   ]);
   state.leads = l.leads || [];
-  state.bookings = b.bookings || [];
+  state.submissions = b.submissions || [];
   render();
 }
 
@@ -95,14 +95,14 @@ function setTab(t){ state.tab=t; state.filter="all";
 document.querySelectorAll(".tab").forEach(el=>el.onclick=()=>setTab(el.dataset.tab));
 
 function renderStats(){
-  const L=state.leads, B=state.bookings;
+  const L=state.leads, B=state.submissions;
   const total=L.length;
   const neu=L.filter(x=>x.status==="new").length;
   const conv=L.filter(x=>x.status==="converted").length;
   const pct= total? Math.round(conv/total*100):0;
   const weekAgo=Date.now()-7*86400000;
   const bWeek=B.filter(x=>{ const t=Date.parse(x.created_at); return t && t>weekAgo; }).length;
-  const tiles=[["Leads",total],["New",neu],["Converted",conv],["Conv.",pct+"%"],["Bookings",B.length],["This week",bWeek]];
+  const tiles=[["Leads",total],["New",neu],["Converted",conv],["Conv.",pct+"%"],["Requests",B.length],["This week",bWeek]];
   const el=document.getElementById("stats"); el.innerHTML="";
   tiles.forEach(([label,n])=>{ const t=div("tile"); const nn=div("n"); nn.textContent=String(n);
     const ll=div("l"); ll.textContent=label; t.appendChild(nn); t.appendChild(ll); el.appendChild(t); });
@@ -114,15 +114,15 @@ function render(){
   const list=document.getElementById("list");
   if(state.tab==="settings"){ filters.innerHTML=""; renderSettings(list); return; }
 
-  const statuses = state.tab==="leads"?LEAD_STATUSES:BOOKING_STATUSES;
+  const statuses = state.tab==="leads"?LEAD_STATUSES:SUBMISSION_STATUSES;
   filters.innerHTML="";
   ["all",...statuses].forEach(f=>{ const c=div("chip"+(state.filter===f?" active":"")); c.textContent=f;
     c.onclick=()=>{ state.filter=f; render(); }; filters.appendChild(c); });
 
   list.innerHTML="";
-  const items=(state.tab==="leads"?state.leads:state.bookings).filter(x=>state.filter==="all"||x.status===state.filter);
+  const items=(state.tab==="leads"?state.leads:state.submissions).filter(x=>state.filter==="all"||x.status===state.filter);
   if(items.length===0){ const e=div("empty"); e.textContent="Nothing here yet."; list.appendChild(e); return; }
-  items.forEach(x=> list.appendChild(state.tab==="leads"?leadCard(x):bookingCard(x)));
+  items.forEach(x=> list.appendChild(state.tab==="leads"?leadCard(x):submissionCard(x)));
 }
 
 async function renderSettings(container){
@@ -177,14 +177,16 @@ function leadCard(x){
   return c;
 }
 
-function bookingCard(x){
+function submissionCard(x){
   const c=div("card");
   const r=div("row1"); const nm=div("name"); nm.textContent=x.name||"Unknown";
   r.appendChild(nm); r.appendChild(waLink(x.phone)); c.appendChild(r);
   const ph=div("phone"); ph.textContent="+"+x.phone.replace(/\\D/g,""); c.appendChild(ph);
-  const req=div("req"); req.textContent="🗓 "+x.requested_time; c.appendChild(req);
-  if(x.message){ const m=div("msg"); m.textContent=x.message; c.appendChild(m); }
-  c.appendChild(labelled("Status", statusSelect(x.status, BOOKING_STATUSES, v=>{ x.status=v; patch("bookings",x.id,{status:v}); })));
+  const lbl=div("req"); lbl.textContent="🔖 "+(x.action_label||x.action_key); c.appendChild(lbl);
+  let data={}; try{ data=JSON.parse(x.data||"{}"); }catch(e){}
+  const fields=Object.entries(data).filter(function(e){ return e[0]!=="name"; });
+  if(fields.length){ const m=div("msg"); m.textContent=fields.map(function(e){ return e[0]+": "+e[1]; }).join("\\n"); c.appendChild(m); }
+  c.appendChild(labelled("Status", statusSelect(x.status, SUBMISSION_STATUSES, v=>{ x.status=v; patch("submissions",x.id,{status:v}); })));
   const w=div("when"); w.textContent="Updated "+fmt(x.updated_at); c.appendChild(w);
   return c;
 }
@@ -195,7 +197,7 @@ function fmt(iso){ try{ return new Date(iso).toLocaleString(); }catch(e){ return
 
 async function patch(kind, id, body){
   await fetch("/api/"+kind+"/"+id, { method:"PATCH", headers:{"content-type":"application/json"}, body:JSON.stringify(body) });
-  const arr = kind==="leads"?state.leads:state.bookings;
+  const arr = kind==="leads"?state.leads:state.submissions;
   const item = arr.find(i=>i.id===id); if(item){ Object.assign(item, body); }
 }
 

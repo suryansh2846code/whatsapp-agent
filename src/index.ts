@@ -14,23 +14,21 @@ import {
   upsertBusiness,
 } from "./businesses/store";
 import { renderDashboardPage } from "./dashboard/html";
+import { listLeads, updateLead, LEAD_STATUSES } from "./crm/queries";
 import {
-  listLeads,
-  updateLead,
-  listBookings,
-  updateBooking,
-  LEAD_STATUSES,
-  BOOKING_STATUSES,
-} from "./crm/queries";
+  createSubmission,
+  listSubmissions,
+  updateSubmissionStatus,
+  SUBMISSION_STATUSES,
+} from "./submissions/store";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
 import { runConversationTurn } from "./memory/conversation";
 import { createLeadStore } from "./leads";
-import { createBookingStore } from "./bookings";
 import { createWhatsAppClient, parseIncomingMessages, verifyMetaSignature } from "./whatsapp";
 import type { IncomingMessage } from "./whatsapp";
 import { transcribeAudio } from "./voice/transcribe";
-import { sendBookingAlert } from "./alerts/email";
+import { sendSubmissionAlert } from "./alerts/email";
 import { buildAuthUrl, exchangeCodeForEmail } from "./auth/google";
 import { upsertAccount } from "./auth/accounts";
 import {
@@ -194,16 +192,17 @@ export default {
       return handleDebugLead(request, env);
     }
 
-    // Test-only: run the question-vs-visit decision (and record a booking if
-    // one is extracted), no WhatsApp needed.
-    //   curl -X POST localhost:8787/debug/decide \
+    // Test-only: run the generic agent (answer or carry out an action), with
+    // memory, no WhatsApp needed. Call repeatedly with the same phone for
+    // multi-turn.
+    //   curl -X POST localhost:8787/debug/agent \
     //     -H 'content-type: application/json' \
     //     -d '{"phoneNumberId":"1306957939157417","phone":"+910000000042","message":"can I visit this Saturday at 11am?"}'
-    if (request.method === "POST" && url.pathname === "/debug/decide") {
+    if (request.method === "POST" && url.pathname === "/debug/agent") {
       if (env.ENABLE_DEBUG_ROUTES !== "true") {
         return new Response("debug routes disabled", { status: 403 });
       }
-      return handleDebugDecide(request, env);
+      return handleDebugAgent(request, env);
     }
 
     return new Response("not found", { status: 404 });
@@ -241,10 +240,10 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
       }
       if (!text) continue; // nothing usable (e.g. empty transcription)
 
-      // Decide: answer a question, or capture a visit request — with memory of
-      // the recent conversation (so multi-message bookings work). `business` is
+      // Run the agent: answer a question, or carry out a configured action —
+      // with conversation memory (so multi-message actions work). `business` is
       // already the effective record (D1 override else config).
-      const decision = await runConversationTurn(
+      const agentResult = await runConversationTurn(
         env.CONVERSATIONS,
         llm,
         business,
@@ -252,57 +251,32 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
         text,
       );
 
-      // If it was a visit request with a resolved date+time, record it (deduped
-      // by phone). Save BEFORE replying so we can soften the reply when nothing
-      // changed (e.g. a follow-up "ok thanks" — don't re-confirm or duplicate).
-      let replyText = decision.reply;
-      let newBooking: { name?: string; requestedTime: string } | null = null;
-      if (decision.booking) {
-        const bookings = createBookingStore(env, business);
-        const bResult = await bookings.save({
-          timestamp: new Date().toISOString(),
-          business: business.displayName,
-          name: decision.booking.name ?? msg.senderName,
-          phone: msg.from,
-          requestedTime: decision.booking.requestedTime,
-          message: text,
-        });
-        console.log(`booking ${bResult}: ${msg.from} -> ${decision.booking.requestedTime}`);
-        if (bResult === "unchanged") {
-          replyText =
-            `You're all set for ${decision.booking.requestedTime} — ` +
-            `our team will call to confirm.`;
-        } else {
-          // created or updated → worth alerting the owner
-          newBooking = {
-            name: decision.booking.name ?? msg.senderName,
-            requestedTime: decision.booking.requestedTime,
-          };
-        }
-      }
-
-      await whatsapp.sendText(msg.businessPhoneNumberId, msg.from, replyText);
+      await whatsapp.sendText(msg.businessPhoneNumberId, msg.from, agentResult.reply);
 
       // Every message is also a lead (deduped by phone).
       const store = createLeadStore(env, business);
-      const result = await store.save({
+      const leadResult = await store.save({
         timestamp: new Date().toISOString(),
         business: business.displayName,
         name: msg.senderName,
         phone: msg.from,
         message: text,
       });
-      console.log(`lead ${result}: ${msg.from} (${business.displayName})`);
+      console.log(`lead ${leadResult}: ${msg.from} (${business.displayName})`);
 
-      // Alert the owner about a new/updated booking (non-fatal if it fails).
-      if (newBooking) {
+      // A completed action → record the submission + alert the owner (non-fatal).
+      if (agentResult.submission) {
+        const sub = agentResult.submission;
+        await createSubmission(env.DB, business.id, {
+          actionKey: sub.actionKey,
+          actionLabel: sub.actionLabel,
+          phone: msg.from,
+          name: sub.data.name ?? msg.senderName,
+          data: sub.data,
+        });
+        console.log(`submission ${sub.actionKey}: ${msg.from} (${business.displayName})`);
         try {
-          await sendBookingAlert(env, business, {
-            name: newBooking.name,
-            phone: msg.from,
-            requestedTime: newBooking.requestedTime,
-            message: text,
-          });
+          await sendSubmissionAlert(env, business, sub.actionLabel, msg.from, sub.data);
           console.log(`owner alert sent for ${business.displayName}`);
         } catch (e) {
           console.error("owner alert failed:", e);
@@ -327,8 +301,8 @@ async function handleApi(
   if (request.method === "GET" && path === "/api/leads") {
     return Response.json({ leads: await listLeads(env.DB, bid) });
   }
-  if (request.method === "GET" && path === "/api/bookings") {
-    return Response.json({ bookings: await listBookings(env.DB, bid) });
+  if (request.method === "GET" && path === "/api/submissions") {
+    return Response.json({ submissions: await listSubmissions(env.DB, bid) });
   }
 
   if (path === "/api/settings") {
@@ -395,14 +369,14 @@ async function handleApi(
     return Response.json({ ok });
   }
 
-  const bookingMatch = path.match(/^\/api\/bookings\/(\d+)$/);
-  if (request.method === "PATCH" && bookingMatch) {
-    const id = Number(bookingMatch[1]);
+  const submissionMatch = path.match(/^\/api\/submissions\/(\d+)$/);
+  if (request.method === "PATCH" && submissionMatch) {
+    const id = Number(submissionMatch[1]);
     const body = (await request.json().catch(() => ({}))) as { status?: string };
-    if (typeof body.status !== "string" || !(BOOKING_STATUSES as readonly string[]).includes(body.status)) {
+    if (typeof body.status !== "string" || !(SUBMISSION_STATUSES as readonly string[]).includes(body.status)) {
       return Response.json({ error: "invalid status" }, { status: 400 });
     }
-    const ok = await updateBooking(env.DB, bid, id, body.status);
+    const ok = await updateSubmissionStatus(env.DB, bid, id, body.status);
     return Response.json({ ok });
   }
 
@@ -475,7 +449,7 @@ async function handleDebugLead(request: Request, env: Env): Promise<Response> {
   }
 }
 
-async function handleDebugDecide(request: Request, env: Env): Promise<Response> {
+async function handleDebugAgent(request: Request, env: Env): Promise<Response> {
   try {
     const body = (await request.json()) as {
       phoneNumberId?: string;
@@ -496,32 +470,26 @@ async function handleDebugDecide(request: Request, env: Env): Promise<Response> 
 
     const llm = createLlmProvider(env);
     const phone = body.phone ?? "+910000000000";
-    const decision = await runConversationTurn(env.CONVERSATIONS, llm, business, phone, body.message);
+    const result = await runConversationTurn(env.CONVERSATIONS, llm, business, phone, body.message);
 
-    let bookingResult: string | null = null;
-    let alertSent = false;
-    if (decision.booking) {
-      const bookings = createBookingStore(env, business);
-      bookingResult = await bookings.save({
-        timestamp: new Date().toISOString(),
-        business: business.displayName,
-        name: decision.booking.name,
+    let recorded = false;
+    if (result.submission) {
+      await createSubmission(env.DB, business.id, {
+        actionKey: result.submission.actionKey,
+        actionLabel: result.submission.actionLabel,
         phone,
-        requestedTime: decision.booking.requestedTime,
-        message: body.message,
+        name: result.submission.data.name,
+        data: result.submission.data,
       });
-      if (bookingResult === "created" || bookingResult === "updated") {
-        await sendBookingAlert(env, business, {
-          name: decision.booking.name,
-          phone,
-          requestedTime: decision.booking.requestedTime,
-          message: body.message,
-        });
-        alertSent = true;
-      }
+      recorded = true;
     }
 
-    return Response.json({ reply: decision.reply, booking: decision.booking, bookingResult, alertSent });
+    return Response.json({
+      reply: result.reply,
+      submission: result.submission ?? null,
+      pending: result.pending ?? null,
+      recorded,
+    });
   } catch (err) {
     return Response.json(
       { error: err instanceof Error ? err.message : "unknown error" },

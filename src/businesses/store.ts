@@ -1,5 +1,5 @@
 import type { Env } from "../env";
-import type { BusinessConfig } from "../config/types";
+import type { BusinessConfig, ActionDef } from "../config/types";
 import {
   findBusinessById,
   findBusinessByPhoneNumberId,
@@ -26,16 +26,24 @@ interface BusinessRow {
   languages: string;
   knowledge: string;
   fallback_message: string;
+  actions: string | null;
 }
 
 const COLS =
-  "id, display_name, owner_email, whatsapp_phone_number_id, languages, knowledge, fallback_message";
+  "id, display_name, owner_email, whatsapp_phone_number_id, languages, knowledge, fallback_message, actions";
 
 function rowToConfig(row: BusinessRow): BusinessConfig {
   let languages: string[] = ["English"];
   try {
     const parsed = JSON.parse(row.languages);
     if (Array.isArray(parsed) && parsed.length) languages = parsed as string[];
+  } catch {
+    /* keep default */
+  }
+  let actions: ActionDef[] = [];
+  try {
+    const parsed = JSON.parse(row.actions ?? "[]");
+    if (Array.isArray(parsed)) actions = parsed as ActionDef[];
   } catch {
     /* keep default */
   }
@@ -47,6 +55,7 @@ function rowToConfig(row: BusinessRow): BusinessConfig {
     languages,
     knowledge: row.knowledge,
     fallbackMessage: row.fallback_message,
+    actions,
   };
 }
 
@@ -83,8 +92,8 @@ export async function upsertBusiness(env: Env, b: BusinessConfig): Promise<void>
   const now = new Date().toISOString();
   await env.DB.prepare(
     `INSERT INTO businesses
-       (id, display_name, owner_email, whatsapp_phone_number_id, languages, knowledge, fallback_message, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       (id, display_name, owner_email, whatsapp_phone_number_id, languages, knowledge, fallback_message, actions, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        display_name = excluded.display_name,
        owner_email = excluded.owner_email,
@@ -92,6 +101,7 @@ export async function upsertBusiness(env: Env, b: BusinessConfig): Promise<void>
        languages = excluded.languages,
        knowledge = excluded.knowledge,
        fallback_message = excluded.fallback_message,
+       actions = excluded.actions,
        updated_at = excluded.updated_at`,
   )
     .bind(
@@ -102,6 +112,7 @@ export async function upsertBusiness(env: Env, b: BusinessConfig): Promise<void>
       JSON.stringify(b.languages),
       b.knowledge,
       b.fallbackMessage,
+      JSON.stringify(b.actions ?? []),
       now,
       now,
     )

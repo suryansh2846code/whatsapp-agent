@@ -64,4 +64,22 @@ For anything not covered here, our team will call the parent back.
   // Owner's email for booking alerts. In Resend TEST mode this must be the email
   // you signed up to Resend with. Replace with the real owner's email per client.
   ownerEmail: "origin200626@gmail.com",
+
+  // Configurable actions the bot can carry out (ADR 0022). Booking is now just
+  // one of these — add more (orders, quotes…) as data, not code.
+  actions: [
+    {
+      key: "book_visit",
+      label: "Visit booking",
+      description: "when someone wants to visit, tour, or come see the school",
+      fields: [
+        { key: "date", label: "preferred day/date", required: true },
+        { key: "time", label: "preferred time", required: true },
+        { key: "name", label: "name" },
+      ],
+      confirmation:
+        "Thanks! I've noted your visit request for {date} at {time}. " +
+        "Someone from {business} will call you to confirm.",
+    },
+  ],
 };

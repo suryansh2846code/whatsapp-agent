@@ -62,4 +62,31 @@ export interface BusinessConfig {
    * back while the lead is warm. Optional; no email = no alert. (ADR 0015.)
    */
   ownerEmail?: string;
+
+  /**
+   * The configurable actions this bot can carry out (booking, order, quote…).
+   * Data-driven — adding a feature is adding an action, not code. (ADR 0022.)
+   */
+  actions?: ActionDef[];
+}
+
+/** One field an action collects from the customer (plain text in v1). */
+export interface ActionField {
+  key: string;
+  label: string;
+  required?: boolean;
+}
+
+/**
+ * A configurable "action" the bot can carry out. The bot collects the fields
+ * over the conversation, then records a submission. See ADR 0022.
+ */
+export interface ActionDef {
+  key: string;
+  label: string;
+  /** When this action applies, e.g. "when someone wants to place an order". */
+  description: string;
+  fields: ActionField[];
+  /** Confirmation template; `{fieldKey}` and `{business}` are filled in code. */
+  confirmation: string;
 }

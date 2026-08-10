@@ -4,7 +4,6 @@
  */
 
 export const LEAD_STATUSES = ["new", "contacted", "converted", "lost"] as const;
-export const BOOKING_STATUSES = ["requested", "confirmed", "done", "cancelled"] as const;
 
 export interface LeadRow {
   id: number;
@@ -14,17 +13,6 @@ export interface LeadRow {
   message_count: number;
   status: string;
   notes: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface BookingRow {
-  id: number;
-  phone: string;
-  name: string;
-  requested_time: string;
-  message: string;
-  status: string;
   created_at: string;
   updated_at: string;
 }
@@ -67,26 +55,3 @@ export async function updateLead(
   return (res.meta.changes ?? 0) > 0;
 }
 
-export async function listBookings(db: D1Database, businessId: string): Promise<BookingRow[]> {
-  const res = await db
-    .prepare(
-      `SELECT id, phone, name, requested_time, message, status, created_at, updated_at
-       FROM bookings WHERE business_id = ? ORDER BY updated_at DESC LIMIT 500`,
-    )
-    .bind(businessId)
-    .all<BookingRow>();
-  return res.results ?? [];
-}
-
-export async function updateBooking(
-  db: D1Database,
-  businessId: string,
-  id: number,
-  status: string,
-): Promise<boolean> {
-  const res = await db
-    .prepare("UPDATE bookings SET status = ?, updated_at = ? WHERE id = ? AND business_id = ?")
-    .bind(status, new Date().toISOString(), id, businessId)
-    .run();
-  return (res.meta.changes ?? 0) > 0;
-}

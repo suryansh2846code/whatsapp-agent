@@ -2,42 +2,36 @@ import type { Env } from "../env";
 import type { BusinessConfig } from "../config/types";
 
 /**
- * Owner alerts via Resend (ADR 0015).
- *
- * When a new booking comes in, email the business owner so they can call back
- * while the lead is warm. Failures here are non-fatal — the bot has already
- * replied and logged the booking; a missed email shouldn't break anything.
+ * Owner alerts via Resend (ADR 0015 / 0022). When an action completes (booking,
+ * order, quote…), email the owner so they can act while the lead is warm.
+ * Failures are non-fatal — the bot already replied and recorded the submission.
  */
-
-export interface BookingAlert {
-  name?: string;
-  phone: string;
-  requestedTime: string;
-  message: string;
-}
 
 const RESEND_URL = "https://api.resend.com/emails";
 
-export async function sendBookingAlert(
+export async function sendSubmissionAlert(
   env: Env,
   business: BusinessConfig,
-  alert: BookingAlert,
+  actionLabel: string,
+  phone: string,
+  data: Record<string, string>,
 ): Promise<void> {
-  if (!business.ownerEmail) return; // no recipient configured for this client
+  if (!business.ownerEmail) return; // no recipient configured
   if (!env.RESEND_API_KEY) {
     console.warn("RESEND_API_KEY not set — skipping owner alert.");
     return;
   }
 
   const from = env.ALERT_FROM_EMAIL || "onboarding@resend.dev";
-  const subject = `New visit booking — ${business.displayName}`;
+  const subject = `New ${actionLabel} — ${business.displayName}`;
+  const details = Object.entries(data)
+    .map(([k, v]) => `${k}: ${v}`)
+    .join("\n");
   const text = [
-    `New visit request for ${business.displayName}:`,
+    `New ${actionLabel.toLowerCase()} for ${business.displayName}:`,
     ``,
-    `Name: ${alert.name || "(not given)"}`,
-    `Phone: ${alert.phone}`,
-    `Requested time: ${alert.requestedTime}`,
-    `Their message: ${alert.message}`,
+    `Phone: ${phone}`,
+    details,
     ``,
     `Reply to them on WhatsApp to confirm.`,
   ].join("\n");

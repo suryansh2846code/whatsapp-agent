@@ -86,3 +86,19 @@ CREATE TABLE IF NOT EXISTS businesses (
 );
 CREATE INDEX IF NOT EXISTS idx_businesses_phone ON businesses (whatsapp_phone_number_id);
 CREATE INDEX IF NOT EXISTS idx_businesses_email ON businesses (owner_email);
+
+-- Generic action submissions (ADR 0022): one table for every vertical action
+-- (booking, order, quote…). `data` is the JSON of the collected fields.
+CREATE TABLE IF NOT EXISTS submissions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_id  TEXT NOT NULL,
+  action_key   TEXT NOT NULL,
+  action_label TEXT NOT NULL,
+  phone        TEXT,
+  name         TEXT,
+  data         TEXT NOT NULL DEFAULT '{}',
+  status       TEXT NOT NULL DEFAULT 'new',
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_submissions_business ON submissions (business_id, updated_at);
