@@ -7,7 +7,12 @@
  * real WhatsApp webhook.
  */
 import type { Env } from "./env";
-import { findBusinessByPhoneNumberId, findBusinessByOwnerEmail, findBusinessById } from "./config";
+import {
+  getBusinessById,
+  getBusinessByPhoneNumberId,
+  getBusinessByOwnerEmail,
+  upsertBusiness,
+} from "./businesses/store";
 import { renderDashboardPage } from "./dashboard/html";
 import {
   listLeads,
@@ -17,7 +22,6 @@ import {
   LEAD_STATUSES,
   BOOKING_STATUSES,
 } from "./crm/queries";
-import { getEffectiveSettings, withEffectiveSettings, upsertSettings } from "./crm/settings";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
 import { runConversationTurn } from "./memory/conversation";
@@ -76,7 +80,7 @@ export default {
       if (!result || !result.emailVerified) {
         return new Response("Login failed.", { status: 400 });
       }
-      const business = findBusinessByOwnerEmail(result.email);
+      const business = await getBusinessByOwnerEmail(env, result.email);
       if (!business) {
         return new Response("No account for this email — contact us to get set up.", { status: 403 });
       }
@@ -105,7 +109,7 @@ export default {
       if (!session) {
         return new Response(null, { status: 302, headers: { location: "/auth/login" } });
       }
-      const business = findBusinessById(session.businessId);
+      const business = await getBusinessById(env, session.businessId);
       return new Response(renderDashboardPage(business?.displayName ?? "Dashboard", session.email), {
         headers: { "content-type": "text/html; charset=utf-8" },
       });
@@ -208,7 +212,7 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
 
   for (const msg of messages) {
     try {
-      const business = findBusinessByPhoneNumberId(msg.businessPhoneNumberId);
+      const business = await getBusinessByPhoneNumberId(env, msg.businessPhoneNumberId);
       if (!business) {
         // A message to a number we don't manage — ignore it.
         console.warn(`No business for phoneNumberId ${msg.businessPhoneNumberId}`);
@@ -224,15 +228,13 @@ async function processMessages(messages: IncomingMessage[], env: Env): Promise<v
       }
       if (!text) continue; // nothing usable (e.g. empty transcription)
 
-      // Use the owner's edited knowledge/fallback if they've set any (else config).
-      const effective = await withEffectiveSettings(env.DB, business);
-
       // Decide: answer a question, or capture a visit request — with memory of
-      // the recent conversation (so multi-message bookings work).
+      // the recent conversation (so multi-message bookings work). `business` is
+      // already the effective record (D1 override else config).
       const decision = await runConversationTurn(
         env.CONVERSATIONS,
         llm,
-        effective,
+        business,
         msg.from,
         text,
       );
@@ -317,21 +319,25 @@ async function handleApi(
   }
 
   if (path === "/api/settings") {
-    const business = findBusinessById(bid);
+    const business = await getBusinessById(env, bid);
     if (!business) return Response.json({ error: "unknown business" }, { status: 404 });
     if (request.method === "GET") {
-      return Response.json(await getEffectiveSettings(env.DB, business));
+      return Response.json({
+        knowledge: business.knowledge,
+        fallbackMessage: business.fallbackMessage,
+      });
     }
     if (request.method === "PATCH") {
       const body = (await request.json().catch(() => ({}))) as {
         knowledge?: string;
         fallbackMessage?: string;
       };
-      const current = await getEffectiveSettings(env.DB, business);
-      await upsertSettings(env.DB, bid, {
-        knowledge: typeof body.knowledge === "string" ? body.knowledge : current.knowledge,
+      // Upsert the whole business row (promotes a config business into D1).
+      await upsertBusiness(env, {
+        ...business,
+        knowledge: typeof body.knowledge === "string" ? body.knowledge : business.knowledge,
         fallbackMessage:
-          typeof body.fallbackMessage === "string" ? body.fallbackMessage : current.fallbackMessage,
+          typeof body.fallbackMessage === "string" ? body.fallbackMessage : business.fallbackMessage,
       });
       return Response.json({ ok: true });
     }
@@ -374,7 +380,7 @@ async function handleDebugAsk(request: Request, env: Env): Promise<Response> {
       message?: string;
     };
 
-    const business = findBusinessByPhoneNumberId(body.phoneNumberId ?? "");
+    const business = await getBusinessByPhoneNumberId(env, body.phoneNumberId ?? "");
     if (!business) {
       return Response.json(
         { error: `No business found for phoneNumberId "${body.phoneNumberId ?? ""}"` },
@@ -405,7 +411,7 @@ async function handleDebugLead(request: Request, env: Env): Promise<Response> {
       message?: string;
     };
 
-    const business = findBusinessByPhoneNumberId(body.phoneNumberId ?? "");
+    const business = await getBusinessByPhoneNumberId(env, body.phoneNumberId ?? "");
     if (!business) {
       return Response.json(
         { error: `No business found for phoneNumberId "${body.phoneNumberId ?? ""}"` },
@@ -441,7 +447,7 @@ async function handleDebugDecide(request: Request, env: Env): Promise<Response> 
       message?: string;
     };
 
-    const business = findBusinessByPhoneNumberId(body.phoneNumberId ?? "");
+    const business = await getBusinessByPhoneNumberId(env, body.phoneNumberId ?? "");
     if (!business) {
       return Response.json(
         { error: `No business found for phoneNumberId "${body.phoneNumberId ?? ""}"` },
@@ -454,8 +460,7 @@ async function handleDebugDecide(request: Request, env: Env): Promise<Response> 
 
     const llm = createLlmProvider(env);
     const phone = body.phone ?? "+910000000000";
-    const effective = await withEffectiveSettings(env.DB, business);
-    const decision = await runConversationTurn(env.CONVERSATIONS, llm, effective, phone, body.message);
+    const decision = await runConversationTurn(env.CONVERSATIONS, llm, business, phone, body.message);
 
     let bookingResult: string | null = null;
     let alertSent = false;

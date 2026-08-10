@@ -60,10 +60,29 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 -- Per-business editable settings (the FAQ knowledge + fallback), so owners can
 -- update them from the dashboard. If a row is absent/blank the code config is
--- used as the default (ADR 0019).
+-- used as the default (ADR 0019). Superseded by `businesses` (ADR 0020) — the
+-- businesses table now holds knowledge/fallback too; this table is left in place
+-- but unused.
 CREATE TABLE IF NOT EXISTS business_settings (
   business_id      TEXT PRIMARY KEY,
   knowledge        TEXT,
   fallback_message TEXT,
   updated_at       TEXT NOT NULL
 );
+
+-- Businesses (tenants) live here for self-serve (ADR 0020): lookups read D1
+-- first, falling back to the code config for un-migrated businesses. Editing any
+-- field in the dashboard upserts the row here (promoting it out of config).
+CREATE TABLE IF NOT EXISTS businesses (
+  id                       TEXT PRIMARY KEY,
+  display_name             TEXT NOT NULL,
+  owner_email              TEXT,
+  whatsapp_phone_number_id TEXT,
+  languages                TEXT NOT NULL DEFAULT '["English"]',
+  knowledge                TEXT NOT NULL DEFAULT '',
+  fallback_message         TEXT NOT NULL DEFAULT '',
+  created_at               TEXT NOT NULL,
+  updated_at               TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_businesses_phone ON businesses (whatsapp_phone_number_id);
+CREATE INDEX IF NOT EXISTS idx_businesses_email ON businesses (owner_email);

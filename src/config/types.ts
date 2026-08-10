@@ -52,11 +52,10 @@ export interface BusinessConfig {
   fallbackMessage: string;
 
   /**
-   * Where captured leads go: the ID of this business's Google Sheet. Each
-   * client gets their own sheet so the owner just opens a spreadsheet to see
-   * their enquiries. (Wired up in a later step.)
+   * Legacy: the Google Sheet ID for leads. Optional now that leads live in D1
+   * (the Sheets adapters are parked). Kept for the config demo business.
    */
-  leadSheetId: string;
+  leadSheetId?: string;
 
   /**
    * The owner's email — gets an instant alert on a new booking so they can call
