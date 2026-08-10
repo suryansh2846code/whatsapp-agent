@@ -34,3 +34,4 @@ one — the history is the point).
 - [0015 — Owner booking alerts via Resend (email)](0015-owner-alerts-resend.md)
 - [0016 — Move leads/bookings to Cloudflare D1 (CRM data store)](0016-d1-datastore.md)
 - [0017 — Owner dashboard auth via Google sign-in + D1 accounts](0017-owner-auth-google.md)
+- [0018 — CRM dashboard: server-rendered, mobile-first + JSON API](0018-crm-dashboard.md)

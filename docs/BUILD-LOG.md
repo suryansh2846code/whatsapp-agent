@@ -450,3 +450,33 @@ login (owner's step).
 
 **Next:** CRM Phase 3 — the dashboard UI (list/filter leads & bookings, edit
 status & notes) behind `requireAuth`.
+
+**Login fix (2026-08-10):** first live login failed — OAuth state was in KV
+(eventually consistent). Moved state → an HttpOnly cookie and sessions → D1
+(strongly consistent). Login now works.
+
+---
+
+## Step 16 — CRM Phase 3: the dashboard (2026-08-10)
+
+**Goal:** a mobile-first dashboard for owners to view + manage leads/bookings
+(ADR 0018).
+
+**What we made**
+- `crm/queries.ts` — tenant-scoped D1 reads/updates for leads + bookings
+  (status whitelists).
+- `dashboard/html.ts` — one server-rendered, mobile-first page (cards, Leads/
+  Bookings tabs, status filter chips, inline status dropdown + notes editing,
+  one-tap wa.me reply). User data rendered via `textContent` (XSS-safe).
+- `index.ts` — `/dashboard` (renders the page) + a `/api/*` router behind a
+  session: `GET /api/leads`, `GET /api/bookings`, `PATCH /api/leads/:id`
+  (status/notes), `PATCH /api/bookings/:id` (status). `config` gains
+  `findBusinessById`.
+
+**Verified locally (2026-08-10, seeded session):** `/api/leads` → 401 without a
+session; with a session → returns the tenant's leads; `PATCH` status+notes →
+persisted; `/dashboard` renders the page. Full visual UI is exercised in the
+browser after Google login.
+
+**CRM v1 complete** (data → auth → dashboard). Next ideas: analytics tiles,
+edit the bot's knowledge from the dashboard, WhatsApp owner alerts, run phase.
