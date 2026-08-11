@@ -603,3 +603,28 @@ Time) → keys auto-generated (appointment / service,date,time) → `/debug/agen
 configure the bot, define its actions, and manage results, all from the
 dashboard. **Next:** pluggable tool handlers (payments/calendar), WhatsApp owner
 alerts, run-phase reminders, signup gating/billing.
+
+---
+
+## Step 22 — Payment links via Razorpay (first tool handler) (2026-08-11)
+
+**Goal:** the first action that reaches an external service — take a payment
+(ADR 0024). Owner-driven amount.
+
+**What we made**
+- `payments/razorpay.ts` — `createPaymentLink` (Basic auth) +
+  `verifyRazorpaySignature` (HMAC-SHA256 hex). Submissions gained `amount`,
+  `payment_status`, `payment_link_id`. `POST /api/submissions/:id/payment-link`
+  (owner enters amount → create link, store pending, send link to the customer on
+  WhatsApp). `POST /webhook/razorpay` (HMAC-verified) → mark paid by link id.
+  Dashboard request cards: "Send payment link" button + paid/pending badge.
+- Secrets `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET`
+  (optional).
+
+**Verified locally (2026-08-11):** Razorpay webhook — wrong signature → 401; valid
+signature → 200 and the submission flipped to `paid`. The link-creation endpoint
+is wired (returns "Razorpay not configured" without keys); live creation needs
+the user's Razorpay keys.
+
+**Next:** owner sets up a Razorpay test account (keys + webhook), then a live
+end-to-end payment. Then more tool handlers (calendar), gating/billing, go-live.
