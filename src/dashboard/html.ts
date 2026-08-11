@@ -246,6 +246,19 @@ function submissionCard(x){
   let data={}; try{ data=JSON.parse(x.data||"{}"); }catch(e){}
   const fields=Object.entries(data).filter(function(e){ return e[0]!=="name"; });
   if(fields.length){ const m=div("msg"); m.textContent=fields.map(function(e){ return e[0]+": "+e[1]; }).join("\\n"); c.appendChild(m); }
+  // Payment
+  if(x.payment_status==="paid"){ const p=div("req"); p.textContent="💰 Paid"+(x.amount?(" ₹"+x.amount):""); c.appendChild(p); }
+  else {
+    const p=btnSmall(x.payment_status==="pending"?("Resend payment link ₹"+(x.amount||"")):"Send payment link");
+    p.onclick=async()=>{ const amt=prompt("Amount to charge (₹):", x.amount||""); if(!amt) return;
+      p.disabled=true; p.textContent="Sending…";
+      const r=await fetch("/api/submissions/"+x.id+"/payment-link",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({amount:Number(amt)})}).then(res=>res.json()).catch(()=>({}));
+      p.disabled=false;
+      if(r.ok){ x.payment_status="pending"; x.amount=amt; p.textContent="Link sent ✓ (₹"+amt+")"; }
+      else { p.textContent="Failed — "+(r.error||"try again"); }
+    };
+    c.appendChild(p);
+  }
   c.appendChild(labelled("Status", statusSelect(x.status, SUBMISSION_STATUSES, v=>{ x.status=v; patch("submissions",x.id,{status:v}); })));
   const w=div("when"); w.textContent="Updated "+fmt(x.updated_at); c.appendChild(w);
   return c;

@@ -74,6 +74,11 @@ export interface Env {
   /** From-address for alert emails. Optional; defaults to Resend's test sender. */
   ALERT_FROM_EMAIL?: string;
 
+  /** Razorpay payment links (ADR 0024). Optional — no keys = payments disabled. */
+  RAZORPAY_KEY_ID?: string;
+  RAZORPAY_KEY_SECRET?: string;
+  RAZORPAY_WEBHOOK_SECRET?: string;
+
   /**
    * When "true", enables local test-only routes like POST /debug/ask.
    * Leave unset in production so these aren't exposed.

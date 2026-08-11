@@ -96,9 +96,13 @@ CREATE TABLE IF NOT EXISTS submissions (
   action_label TEXT NOT NULL,
   phone        TEXT,
   name         TEXT,
-  data         TEXT NOT NULL DEFAULT '{}',
-  status       TEXT NOT NULL DEFAULT 'new',
-  created_at   TEXT NOT NULL,
-  updated_at   TEXT NOT NULL
+  data            TEXT NOT NULL DEFAULT '{}',
+  status          TEXT NOT NULL DEFAULT 'new',
+  amount          TEXT,                                   -- payment amount (rupees), if any
+  payment_status  TEXT NOT NULL DEFAULT 'none',           -- none | pending | paid
+  payment_link_id TEXT,                                   -- Razorpay payment link id
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_submissions_business ON submissions (business_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_submissions_link ON submissions (payment_link_id);

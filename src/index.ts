@@ -20,8 +20,12 @@ import {
   createSubmission,
   listSubmissions,
   updateSubmissionStatus,
+  getSubmissionById,
+  setSubmissionPayment,
+  markSubmissionPaidByLink,
   SUBMISSION_STATUSES,
 } from "./submissions/store";
+import { createPaymentLink, verifyRazorpaySignature } from "./payments/razorpay";
 import { createLlmProvider } from "./llm";
 import { answerQuestion } from "./brain/answer";
 import { runConversationTurn } from "./memory/conversation";
@@ -167,6 +171,30 @@ export default {
       // Fast-ack: return 200 immediately so Meta doesn't retry, and do the real
       // work (brain → reply → lead) in the background via waitUntil.
       ctx.waitUntil(processMessages(messages, env));
+      return new Response("ok", { status: 200 });
+    }
+
+    // Razorpay webhook — marks a submission paid when the payment link is paid.
+    if (request.method === "POST" && url.pathname === "/webhook/razorpay") {
+      const rawBody = await request.text();
+      const valid = await verifyRazorpaySignature(
+        env.RAZORPAY_WEBHOOK_SECRET,
+        rawBody,
+        request.headers.get("x-razorpay-signature"),
+      );
+      if (!valid) return new Response("invalid signature", { status: 401 });
+      try {
+        const body = JSON.parse(rawBody) as {
+          event?: string;
+          payload?: { payment_link?: { entity?: { id?: string } } };
+        };
+        if (body.event === "payment_link.paid") {
+          const linkId = body.payload?.payment_link?.entity?.id;
+          if (linkId) ctx.waitUntil(markSubmissionPaidByLink(env.DB, linkId));
+        }
+      } catch {
+        /* ignore malformed */
+      }
       return new Response("ok", { status: 200 });
     }
 
@@ -414,6 +442,45 @@ async function handleApi(
       const actions = sanitizeActions(body.actions);
       await upsertBusiness(env, { ...business, actions });
       return Response.json({ ok: true, count: actions.length });
+    }
+  }
+
+  const payMatch = path.match(/^\/api\/submissions\/(\d+)\/payment-link$/);
+  if (request.method === "POST" && payMatch) {
+    const id = Number(payMatch[1]);
+    const body = (await request.json().catch(() => ({}))) as { amount?: number | string };
+    const amount = Number(body.amount);
+    if (!amount || amount <= 0) return Response.json({ error: "invalid amount" }, { status: 400 });
+    const sub = await getSubmissionById(env.DB, bid, id);
+    if (!sub) return Response.json({ error: "not found" }, { status: 404 });
+    const business = await getBusinessById(env, bid);
+    if (!business) return Response.json({ error: "unknown business" }, { status: 404 });
+    try {
+      const link = await createPaymentLink(env, {
+        amountRupees: amount,
+        description: `${sub.action_label} — ${business.displayName}`,
+        phone: sub.phone,
+        name: sub.name,
+        notes: { submission_id: String(id), business_id: bid },
+      });
+      await setSubmissionPayment(env.DB, bid, id, String(amount), link.id);
+      // Send the link to the customer on WhatsApp (they just ordered → in window).
+      try {
+        const wa = createWhatsAppClient(env);
+        await wa.sendText(
+          business.whatsappPhoneNumberId,
+          sub.phone,
+          `Please complete your payment of ₹${amount} for your ${sub.action_label.toLowerCase()}: ${link.shortUrl}`,
+        );
+      } catch (e) {
+        console.error("payment link send failed:", e);
+      }
+      return Response.json({ ok: true, shortUrl: link.shortUrl });
+    } catch (err) {
+      return Response.json(
+        { error: err instanceof Error ? err.message : "payment link failed" },
+        { status: 500 },
+      );
     }
   }
 

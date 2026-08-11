@@ -13,9 +13,15 @@ export interface SubmissionRow {
   name: string;
   data: string; // JSON
   status: string;
+  amount: string | null;
+  payment_status: string;
+  payment_link_id: string | null;
   created_at: string;
   updated_at: string;
 }
+
+const SUBMISSION_COLS =
+  "id, action_key, action_label, phone, name, data, status, amount, payment_status, payment_link_id, created_at, updated_at";
 
 export async function createSubmission(
   db: D1Database,
@@ -44,12 +50,46 @@ export async function createSubmission(
 export async function listSubmissions(db: D1Database, businessId: string): Promise<SubmissionRow[]> {
   const res = await db
     .prepare(
-      `SELECT id, action_key, action_label, phone, name, data, status, created_at, updated_at
-       FROM submissions WHERE business_id = ? ORDER BY updated_at DESC LIMIT 500`,
+      `SELECT ${SUBMISSION_COLS} FROM submissions WHERE business_id = ? ORDER BY updated_at DESC LIMIT 500`,
     )
     .bind(businessId)
     .all<SubmissionRow>();
   return res.results ?? [];
+}
+
+export async function getSubmissionById(
+  db: D1Database,
+  businessId: string,
+  id: number,
+): Promise<SubmissionRow | null> {
+  return db
+    .prepare(`SELECT ${SUBMISSION_COLS} FROM submissions WHERE id = ? AND business_id = ?`)
+    .bind(id, businessId)
+    .first<SubmissionRow>();
+}
+
+/** Record a created payment link (status → pending). */
+export async function setSubmissionPayment(
+  db: D1Database,
+  businessId: string,
+  id: number,
+  amount: string,
+  linkId: string,
+): Promise<void> {
+  await db
+    .prepare(
+      "UPDATE submissions SET amount = ?, payment_link_id = ?, payment_status = 'pending', updated_at = ? WHERE id = ? AND business_id = ?",
+    )
+    .bind(amount, linkId, new Date().toISOString(), id, businessId)
+    .run();
+}
+
+/** Mark paid when Razorpay's webhook fires (found by the link id). */
+export async function markSubmissionPaidByLink(db: D1Database, linkId: string): Promise<void> {
+  await db
+    .prepare("UPDATE submissions SET payment_status = 'paid', updated_at = ? WHERE payment_link_id = ?")
+    .bind(new Date().toISOString(), linkId)
+    .run();
 }
 
 export async function updateSubmissionStatus(

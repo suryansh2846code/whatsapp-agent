@@ -36,5 +36,11 @@ ALERT_FROM_EMAIL=onboarding@resend.dev
 # wrangler.jsonc (vars); only the SECRET is here / a Worker secret.
 GOOGLE_OAUTH_CLIENT_SECRET=your_google_oauth_client_secret
 
+# Razorpay payment links (test mode). Keys from dashboard.razorpay.com; the
+# webhook secret is what you set when adding the /webhook/razorpay webhook.
+RAZORPAY_KEY_ID=rzp_test_xxxxxxxx
+RAZORPAY_KEY_SECRET=your_razorpay_key_secret
+RAZORPAY_WEBHOOK_SECRET=your_razorpay_webhook_secret
+
 # Enables POST /debug/ask and /debug/lead for local testing. Leave OUT in production.
 ENABLE_DEBUG_ROUTES=true
