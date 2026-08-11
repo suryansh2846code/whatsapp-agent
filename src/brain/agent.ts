@@ -131,12 +131,22 @@ Rules:
 
 // --- helpers ----------------------------------------------------------------
 
-/** Fill a confirmation template: {fieldKey} -> value, {business} -> name. */
+/**
+ * Fill a confirmation template. Forgiving: `{business}` -> name, and any other
+ * `{...}` is slugified and matched to a field, so `{preferred day/date}`,
+ * `{preferred_day_date}`, and `{Preferred Day/Date}` all resolve.
+ */
 function fillTemplate(tpl: string, data: Record<string, string>, business: BusinessConfig): string {
-  return tpl.replace(/\{(\w+)\}/g, (_m, key: string) => {
+  return tpl.replace(/\{([^{}]+)\}/g, (_m, raw: string) => {
+    const key = slugifyKey(raw);
     if (key === "business") return business.displayName;
     return data[key] ?? "";
   });
+}
+
+/** Turn a placeholder/label into a field key, e.g. "Preferred Day/Date" -> "preferred_day_date". */
+function slugifyKey(s: string): string {
+  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 }
 
 function safeParseObject(raw: string): Record<string, unknown> {
