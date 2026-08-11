@@ -254,7 +254,9 @@ function submissionCard(x){
       p.disabled=true; p.textContent="Sending…";
       const r=await fetch("/api/submissions/"+x.id+"/payment-link",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({amount:Number(amt)})}).then(res=>res.json()).catch(()=>({}));
       p.disabled=false;
-      if(r.ok){ x.payment_status="pending"; x.amount=amt; p.textContent="Link sent ✓ (₹"+amt+")"; }
+      if(r.ok){ x.payment_status="pending"; x.amount=amt; p.textContent="Link created ✓ (₹"+amt+")";
+        if(r.shortUrl){ const a=document.createElement("a"); a.href=r.shortUrl; a.target="_blank";
+          a.className="wa"; a.style.marginLeft="8px"; a.textContent="Open payment link"; p.after(a); } }
       else { p.textContent="Failed — "+(r.error||"try again"); }
     };
     c.appendChild(p);
